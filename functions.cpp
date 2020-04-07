@@ -3,7 +3,11 @@
 //似乎只需要在头文件当中using namespace std即可。
 //using namespace std;
 
-void imgVecInit(vector<int*>& imgVec, int imageNum) 
+//初始化一个存储多个image的vector，为每个image分配空间
+void imgVecInit(
+	vector<int*>& imgVec,	/**< [inout] 存储多个image指针的vector引用  */
+	int imageNum			/**< [in] image数量，也是vector的大小  */
+) 
 {
 	for (int i = 0; i < imageNum; i++)
 	{
@@ -12,7 +16,11 @@ void imgVecInit(vector<int*>& imgVec, int imageNum)
 	}
 }
 
-void imgVecFree(vector<int*>& imgVec, int imageNum)
+//释放imgVec当中所有指针所指向的空间
+void imgVecFree(
+	vector<int*>& imgVec,	/**< [inout] 存储多个image指针的vector引用  */
+	int imageNum			/**< [in] image数量，也是vector的大小  */
+)
 {
 	if (imgVec.size() != imageNum) 
 	{
@@ -26,7 +34,8 @@ void imgVecFree(vector<int*>& imgVec, int imageNum)
 	}
 }
 
-void imgVecRandomGen(vector<int*>& imgVec)
+//为imgVec中所有的图片，生成随机像素值
+void imgVecRandomGen(vector<int*>& imgVec /**< [inout] 存储多个image指针的vector引用  */ )
 {
 	srand((unsigned int)(time(NULL)));
 	//注意迭代器的定义方法
@@ -39,7 +48,8 @@ void imgVecRandomGen(vector<int*>& imgVec)
 	}
 }
 
-void imgVecShow(vector<int*>& imgVec)
+//直接显示一部分图片的部分像素值
+void imgVecShow(vector<int*>& imgVec /**< [inout] 存储多个image指针的vector引用  */)
 {
 	for (int imgIdx=0;imgIdx<SHOW_IMAGE_NUM;imgIdx++)
 	{
