@@ -1,12 +1,18 @@
 #include "kernel.cuh"
 #include "functions.h"
+#include <vector>
+using namespace std;
 
-#define IMAGE_SIZE (1024*1024)
-#define IMAGE_WIDTH 1024
-#define PIXEL_VALUE_MAX 256
+
 int main()
 {
 	cudaInit();
-	
+	vector<int*> imgVec;
+	int imageNum = 32;
+	imgVecInit(imgVec, imageNum);
+	imgVecRandomGen(imgVec);
+	imgVecShow(imgVec);
+	imgVecFree(imgVec, imageNum);
+
 	return 0;
 }

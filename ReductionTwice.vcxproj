@@ -82,6 +82,7 @@
   <ItemGroup>
     <ClInclude Include="functions.h" />
     <ClInclude Include="kernel.cuh" />
+    <ClInclude Include="main.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="functions.cpp" />
