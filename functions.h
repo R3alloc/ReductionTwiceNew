@@ -10,6 +10,8 @@
 #define PIXEL_VALUE_MAX 256
 #define SHOW_IMAGE_NUM 16
 #define SHOW_IMAGE_PIXEL 16
+#define RADIUS (IMAGE_WIDTH/4)
+
 using namespace std;
 void imgVecInit(vector<int*>& imgVec, int imageNum);
 
@@ -18,3 +20,11 @@ void imgVecFree(vector<int*>& imgVec, int imageNum);
 void imgVecRandomGen(vector<int*>& imgVec);
 
 void imgVecShow(vector<int*>& imgVec);
+
+void imgVecCpy(vector<int*>& srcImgVec, vector<int*>& dstImgVec, int imageNum);
+
+void substractImg(vector<int*>& imgVec);
+
+void bgMeanStddev(vector<int>& bg, int& mean, int& stddev, int imageNum);
+
+
