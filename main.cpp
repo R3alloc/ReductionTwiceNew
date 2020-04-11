@@ -6,21 +6,23 @@ using namespace std;
 
 int main()
 {
-	cudaInit();
+	
 	vector<int*> imgVec;
 	vector<int*> oriImgVec;
-	int imageNum = 32;
+	vector<int*> cudaImgVec;
+	int imageNum = IMAGE_TOTAL_NUM;
 
 	imgVecInit(imgVec, imageNum);
 	imgVecInit(oriImgVec, imageNum);
 
-	imgVecRandomGen(imgVec);
+	imgVecRandomGen(oriImgVec);
 	imgVecShow(imgVec);
 
-	imgVecCpy(imgVec, oriImgVec, imageNum);
-	imgVecShow(oriImgVec);
+	imgVecCpy( oriImgVec, imgVec, imageNum);
+	//imgVecShow(oriImgVec);
+	imgVecCpy(oriImgVec, cudaImgVec, imageNum);
+	substractImg(cudaImgVec);
 
-	substractImg(imgVec);
 	imgVecShow(imgVec);
 
 	imgVecFree(imgVec, imageNum);

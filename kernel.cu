@@ -26,3 +26,16 @@ void devMalloc(int** devData, int dataSize)
 	return;
 }
 
+void hostRegister(int* imgData, int dataSizeByte)
+{
+	cudaError_t result = cudaHostRegister(imgData,dataSizeByte,cudaHostRegisterDefault);
+	cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
+	return;
+}
+
+void hostFree(int* imgData)
+{
+	cudaError_t result =  cudaHostUnregister(imgData);
+	cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
+	return;
+}

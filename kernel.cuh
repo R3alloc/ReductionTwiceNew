@@ -10,3 +10,7 @@ void cudaResultCheck(cudaError_t result, char* fileName, char* functionName, int
 void cudaInit();
 
 void devMalloc(int** devData, int dataSize);
+
+void hostRegister(int* imgData, int dataSizeByte);
+
+void hostFree(int* imgData);

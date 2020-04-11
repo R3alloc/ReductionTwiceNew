@@ -141,5 +141,46 @@ void bgMeanStddev(vector<int>& bg, int& mean, int& stddev, int imageNum)
 
 void substractImgG(vector<int*>& imgVec)
 {
+	//如果是主线程，就退出。是计算线程，再参与计算。
 
+	int* image;
+	int mean;
+	int stddev;
+	int nImg = IMAGE_TOTAL_NUM;	//要处理的图片总数
+	int batch = IMAGE_BATCH;	//一次处理图片的数量
+	int dimSizeRL = IMAGE_SIZE;	//一张图片在实空间当中的像素数量
+	int* imgData = (int*)malloc(sizeof(int) * IMAGE_BATCH * dimSizeRL);
+	hostRegister(imgData, IMAGE_BATCH * dimSizeRL*sizeof(int));
+
+	//l相当于每一轮循环中的一个base，偏移基准。
+	for (int l = 0; l < nImg;)
+	{
+		if (l >= nImg)
+		{
+			break;
+		}
+		//设置每一轮的batch大小，最大不超过IMAGE_BATCH 在最后一轮会小于等于IMAGE_BATCH；其他轮次都是等于IMAGE_BATCH
+		batch = (l + IMAGE_BATCH < nImg) ? IMAGE_BATCH : (nImg - l);
+
+		//开始处理当前batch中的每一张图片
+		//将当前batch中的数据都保存到imgData这个一维数组中 注意，这里在读数据的过程中似乎会使用到memoryBazaar
+		for (int i = 0; i < batch; i++)
+		{
+			for (int n = 0; n < dimSizeRL; n++)
+			{
+				imgData[i * dimSizeRL + n] = imgVec[l+i][n];
+			}
+		}
+
+		//将这个batch 中的数据交给GPU去处理
+		//TODO
+
+		//将处理完的数据写回imgVec
+		//TODO
+
+		l += batch;
+	}
+
+	//在全部计算完成后，释放CPU上的锁页内存
+	hostFree(imgData);
 }
