@@ -142,6 +142,14 @@ void bgMeanStddev(vector<int>& bg, int& mean, int& stddev, int imageNum)
 void substractImgG(vector<int*>& imgVec)
 {
 	//如果是主线程，就退出。是计算线程，再参与计算。
+	//TODO
+
+	//模拟
+	vector<void*> _stream;
+	vector<int> _iGPU;
+	int _nGPU = 1;	//GPU的数量
+	cudaInit(_iGPU, _stream);
+	//模拟
 
 	int* image;
 	int mean;
@@ -168,12 +176,19 @@ void substractImgG(vector<int*>& imgVec)
 		{
 			for (int n = 0; n < dimSizeRL; n++)
 			{
-				imgData[i * dimSizeRL + n] = imgVec[l+i][n];
+				imgData[i * dimSizeRL + n] = imgVec[l + i][n];
 			}
 		}
 
 		//将这个batch 中的数据交给GPU去处理
-		//TODO
+		//既要计算mean，stddev，也要修改对应的数据，并且写回imgData
+		substract(_stream,
+			_iGPU,
+			imgData,
+			IMAGE_WIDTH,		//reMask里这个值传入的是_para.size,是图像一条边的长度。这里设置成IMAGE_WIDTH
+			batch,
+			_nGPU
+		);
 
 		//将处理完的数据写回imgVec
 		//TODO
@@ -183,4 +198,6 @@ void substractImgG(vector<int*>& imgVec)
 
 	//在全部计算完成后，释放CPU上的锁页内存
 	hostFree(imgData);
+
+	cudaEndUp(_iGPU, _stream);
 }

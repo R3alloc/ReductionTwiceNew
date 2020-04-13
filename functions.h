@@ -13,9 +13,11 @@
 #define SHOW_IMAGE_PIXEL 16
 #define RADIUS (IMAGE_WIDTH/4)
 #define IMAGE_TOTAL_NUM 64		//图片的总数本身不要设置为一个太大的值
-#define IMAGE_BATCH (IMAGE_TOTAL_NUM/4)	//假定batch的大小为总数的四分之一
+#define IMAGE_BATCH (IMAGE_TOTAL_NUM/4)	//这是在CPU上分割的batch大小 假定batch的大小为总数的四分之一
+
 
 using namespace std;
+
 void imgVecInit(vector<int*>& imgVec, int imageNum);
 
 void imgVecFree(vector<int*>& imgVec, int imageNum);
