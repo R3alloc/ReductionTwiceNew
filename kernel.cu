@@ -150,8 +150,8 @@ void substract(
 				long long shiftRL = (long long)r * imgSizeRL;
 				//一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中
 				kernel_substract <<<
-					idim,
-					threadInBlock,
+					idim,			//分为idim个block
+					threadInBlock,	//一个block中启动threadInBlock个线程
 					0,
 					*((cudaStream_t*)stream[smidx + baseS])>>>(
 						dev_image_buf[smidx + baseS],	//这里保存了从imgData里面拷贝过来的数据，做了修改之后记得写回去
@@ -160,6 +160,8 @@ void substract(
 						imgSizeRL						//一张照片在实空间当中所占据的像素点数
 						);
 			}
+
+
 
 			//一个batch里所有的照片处理完毕之后，应该写回imgData当中
 			//TODO
@@ -170,4 +172,108 @@ void substract(
 		smidx = (smidx + 1) % NUM_STREAM_PER_DEVICE;
 	}
 	//delete[] devSubstract;
+}
+
+/*一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中
+	kernel_substract << <
+		idim,			//分为idim个block
+		threadInBlock,	//一个block中启动threadInBlock个线程
+		0,
+		*((cudaStream_t*)stream[smidx + baseS]) >> > (
+			dev_image_buf[smidx + baseS],	//这里保存了从imgData里面拷贝过来的数据，做了修改之后记得写回去
+			r,								//处理这个batch当中的第r张照片
+			idim,							//一张照片的长度/宽度
+			imgSizeRL						//一张照片在实空间当中所占据的像素点数
+			);
+*/
+__global__ void kernel_substract(
+	int* dev_image,
+	int imgIdx,
+	int dim,
+	size_t imgSizeRL
+	)
+{
+	//grid中的block是一维组织，block中的线程也是一维组织
+	int tid = threadIdx.x + blockDim.x * blockIdx.x;
+
+
+
+}
+
+__global__ void
+Reduction1_kernel(int* out, const int* in, size_t N)
+{
+	//这个数组的大小与blockSize有关（也就是blockDim.x）
+	//注意这个数组在这里定义的时候虽然没有指定大小，但是在调用这个kernel的时候有一个核函数参数就是用来控制kernel内部使用共享内存的大小。
+	extern __shared__ int sPartials[];
+	int sum = 0;
+	//tid是当前线程在当前block中的索引
+	const int tid = threadIdx.x;
+	//i是当前线程在所有线程中的索引
+	//i的步长是grid当中的block数量*block中线程的数量
+	//in[]存储在全局内存中 输入指针被恰当地对齐，由这段代码发起的全部内存事务将被合并，这将最大限度地提高内存带宽。
+	//也就是说一个cuda线程要去多次访问全局内存，然后把这些值加起来
+	for (size_t i = blockIdx.x * blockDim.x + tid;
+		i < N;
+		i += blockDim.x * gridDim.x)
+	{
+		sum += in[i];
+	}
+
+	//每个线程把它得到的累计值写入共享内存
+	sPartials[tid] = sum;
+	//在执行对数步长的规约前进行同步操作
+	__syncthreads();
+
+	//blockSize必须是2的整数次方的原因在这里：每一轮都只有上一次一半的线程还在工作
+	//对于共享内存中的值 执行对数步长的规约操作
+	//共享内存中后半部分的值被添加到前半部分的值上，
+	//假设blockDim.x == 1024，则第一轮activeThreads=512
+	for (int activeThreads = blockDim.x >> 1;
+		activeThreads;
+		activeThreads >>= 1) //>>是二进制右移运算符 等价于整除2
+							  //>>=是右移且赋值运算符 也就是activeThreads = activeThreads>>1
+	{
+		if (tid < activeThreads)
+		{
+			sPartials[tid] += sPartials[tid + activeThreads];
+		}
+		//每一轮加完之后要线程同步
+		__syncthreads();
+	}
+
+	//每个block的0号线程存储一个结果，一共有numBlocks个线程，所以存储了这么多个结果。
+	if (tid == 0)
+	{
+		out[blockIdx.x] = sPartials[0];
+	}
+}
+
+//这里调用两遍kernel函数是必须的
+//非常重要 注意这里kernel函数的参数 ：grid中block的数量==Reduction1_kernel第一个输入参数（一个数组）的长度
+void
+Reduction1(int* answer,		//<out> 指向最终结果的指针
+	int* partial,	//指向存储临时数据 中间数组的指针，应该已经开辟好了空间。数组的长度应该是blockDim.x
+	const int* in, //存储输入数据的指针
+	size_t N,	//输入数据的数量
+	int numBlocks, int numThreads)
+{
+	unsigned int sharedSize = numThreads * sizeof(int);
+	//第一次的结果partial只是一个中间结果，并未完全做和
+	Reduction1_kernel <<<
+		numBlocks, 
+		numThreads, 
+		sharedSize >>> (
+			partial,	//长度等于numBlocks，中间结果partial的长度跟numBlocks有关。
+			in,			//长度为N
+			N);
+
+	//第二次结果answer才是最终的计算结果。
+	Reduction1_kernel <<<
+		1, 
+		numThreads, 
+		sharedSize >>> (
+			answer,		//长度为1
+			partial,	//长度为numBlocks
+			numBlocks);
 }
