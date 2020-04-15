@@ -25,6 +25,7 @@ void cudaInit(vector<int>& iGPU,
 		for (int j = 0; j < NUM_STREAM_PER_DEVICE; j++)
 		{
 			cudaStream_t* newStream = new cudaStream_t;
+			cudaStreamCreate(newStream);
 			stream.push_back((void*)newStream);
 		}
 	}
@@ -39,6 +40,7 @@ void cudaEndUp(vector<int>& iGPU,
 	
 	for (int j = 0; j < stream.size(); j++)
 	{
+		cudaStreamDestroy(*((cudaStream_t*)(stream[j])));
 		delete stream[j];
 	}	
 
@@ -152,37 +154,11 @@ void substract(
 			baseS = n * NUM_STREAM_PER_DEVICE;
 			nImgBatch = (i + BATCH_SIZE < nImg) ? BATCH_SIZE : (nImg - i);
 			
-			//这里的测试说明imgData当中的数据是可以正常读取的
-			for (int idx = 0; idx < imgSizeRL; idx++)
-			{
-				cout << imgData[(nImgBatch-1) * imgSizeRL + idx] << " ";
-			}
-			//dev_image_buf[nImgBatch * imgSizeRL - 1] = 0;
-			//dev_image_buf[nImgBatch * imgSizeRL ] = 0;
-			cudaError_t result = cudaMemcpy(
-				dev_image_buf[smidx + baseS],
-				imgData + i * imgSizeRL,	//注意指针的偏移量，不用去加sizeof(int)
-				//&(imgData[i * imgSizeRL]),
-				nImgBatch * imgSizeRL * sizeof(int),
-				cudaMemcpyHostToDevice);
-			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
-			
-			result = cudaMemcpyAsync(
-				dev_image_buf[smidx + baseS],
-				imgData + i * imgSizeRL,	//注意指针的偏移量，不用去加sizeof(int)
-				//&(imgData[i * imgSizeRL]),
-				nImgBatch * imgSizeRL * sizeof(int),
-				cudaMemcpyHostToDevice);//由于stream当中的存储类型为void*，这里需要先转换指针类型再解引用。
-			
-			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
-			cudaError_t error = cudaGetLastError();
-			printf("*CUDA error ： %s\n", cudaGetErrorString(error));
 
 			//以开始忘了cudaStreamCreate了，所以这里的stream根本没法使用。
 			//将数据从host拷贝到device上
 			//异步拷贝
-			//cudaError_t result = cudaMemcpyAsync(
-			result = cudaMemcpyAsync(
+			cudaError_t result = cudaMemcpyAsync(
 				dev_image_buf[smidx + baseS],
 				imgData + i * imgSizeRL,	//注意指针的偏移量，不用去加sizeof(int)
 				//&(imgData[i * imgSizeRL]),
