@@ -177,8 +177,6 @@ void substract(
 			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
 			cudaError_t error = cudaGetLastError();
 			printf("*CUDA error ： %s\n", cudaGetErrorString(error));
-
-			//以开始忘了cudaStreamCreate了，所以这里的stream根本没法使用。
 			//将数据从host拷贝到device上
 			//异步拷贝
 			//cudaError_t result = cudaMemcpyAsync(

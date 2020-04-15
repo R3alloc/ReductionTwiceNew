@@ -159,7 +159,7 @@ void substractImgG(vector<int*>& imgVec)
 	int dimSizeRL = IMAGE_SIZE;	//一张图片在实空间当中的像素数量
 	int* imgData = (int*)malloc(sizeof(int) * IMAGE_BATCH * dimSizeRL);
 	hostRegister(imgData, IMAGE_BATCH * dimSizeRL*sizeof(int));
-
+	
 	//l相当于每一轮循环中的一个base，偏移基准。
 	for (int l = 0; l < nImg;)
 	{
@@ -198,6 +198,7 @@ void substractImgG(vector<int*>& imgVec)
 
 	//在全部计算完成后，释放CPU上的锁页内存
 	hostFree(imgData);
+	free(imgData);
 
 	cudaEndUp(_iGPU, _stream);
 }
