@@ -14,16 +14,20 @@ int main()
 
 	imgVecInit(imgVec, imageNum);
 	imgVecInit(oriImgVec, imageNum);
+	imgVecInit(cudaImgVec, imageNum);
 
 	imgVecRandomGen(oriImgVec);
-	imgVecShow(imgVec);
+	imgVecShow(oriImgVec);
 
 	imgVecCpy( oriImgVec, imgVec, imageNum);
 	//imgVecShow(oriImgVec);
 	imgVecCpy(oriImgVec, cudaImgVec, imageNum);
-	substractImg(cudaImgVec);
-
+	substractImg(imgVec);
 	imgVecShow(imgVec);
+
+	substractImgG(cudaImgVec);
+
+	
 
 	imgVecFree(imgVec, imageNum);
 	imgVecFree(oriImgVec, imageNum);

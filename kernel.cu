@@ -1,5 +1,5 @@
 #include "kernel.cuh"
-using namespace std;
+//using namespace std;
 
 
 void cudaResultCheck(cudaError_t result,char* fileName, char* functionName, int lineNum)
@@ -94,7 +94,9 @@ void substract(
 	int nStream = nGPU * NUM_STREAM_PER_DEVICE;
 
 	//这个数组当中存储的是指针，每个指针都指向一整段空间地址（能存储BATCH_SIZE张image）
-	int** dev_image_buf = new int*[nStream];
+	//int** dev_image_buf = new int*[nStream];
+	//int* dev_image_buf[nStream];
+	int** dev_image_buf = (int**)malloc(sizeof(int*)*nStream);
 
 	int threadInBlock = (idim > THREAD_PER_BLOCK) ? THREAD_PER_BLOCK : idim;
 
@@ -112,12 +114,17 @@ void substract(
 
 		for (int i = 0; i < NUM_STREAM_PER_DEVICE; i++)
 		{
-			cudaError_t result = cudaMalloc(&dev_image_buf[i + baseS], BATCH_SIZE * imgSizeRL * sizeof(int));
+			cout << "Allocate memory for GPU[" << n << "],stream[" << i << "]" << endl;
+			cudaError_t result = cudaMalloc(&(dev_image_buf[i + baseS]), BATCH_SIZE * imgSizeRL * sizeof(int));
 			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
 		}
 	}
 
 	//LOG(INFO) << "alloc memory done, begin to calculate...";
+
+	//已释放
+	int* partial;
+	cudaMalloc((void**)&partial, THREAD_PER_BLOCK * sizeof(int));
 
 	for (int i = 0; i < nImg;)
 	{
@@ -127,8 +134,8 @@ void substract(
 		{
 			//设定device并且开辟空间，检查错误
 			cudaSetDevice(iGPU[n]);
-			cudaError_t result = cudaMalloc((void**)&devSubstract[n], imgSizeRL * sizeof(int));
-			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
+			//cudaError_t result = cudaMalloc((void**)&devSubstract[n], imgSizeRL * sizeof(int));
+			//cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
 
 			//对于当前GPU的base stream
 			baseS = n * NUM_STREAM_PER_DEVICE;
@@ -136,8 +143,10 @@ void substract(
 			
 			//将数据从host拷贝到device上
 			//异步拷贝
-			result = cudaMemcpyAsync(dev_image_buf[smidx + baseS],
-				imgData + i * imgSizeRL,	//注意指针的偏移量，不用去加sizeof(int)
+			cudaError_t result = cudaMemcpyAsync(
+				dev_image_buf[smidx + baseS],
+				//imgData + i * imgSizeRL,	//注意指针的偏移量，不用去加sizeof(int)
+				&(imgData[i * imgSizeRL]),
 				nImgBatch * imgSizeRL * sizeof(int),
 				cudaMemcpyHostToDevice,
 				*((cudaStream_t*)(stream[smidx + baseS]))	//由于stream当中的存储类型为void*，这里需要先转换指针类型再解引用。
@@ -149,6 +158,7 @@ void substract(
 				//计算偏移量
 				long long shiftRL = (long long)r * imgSizeRL;
 				//一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中
+				/*
 				kernel_substract <<<
 					idim,			//分为idim个block
 					threadInBlock,	//一个block中启动threadInBlock个线程
@@ -159,6 +169,27 @@ void substract(
 						idim,							//一张照片的长度/宽度
 						imgSizeRL						//一张照片在实空间当中所占据的像素点数
 						);
+				*/
+				//计算均值
+				int mean;
+				int stddev;
+				
+				Reduction_mean(&mean, 
+					partial, 
+					dev_image_buf[smidx + baseS],
+					imgSizeRL,
+					idim, 
+					THREAD_PER_BLOCK, 
+					*((cudaStream_t*)stream[smidx + baseS]));
+				//计算标准差
+				//TODO
+
+				//处理dev_image_buf当中的数据
+				//TODO
+
+				cout <<"Image "<<r<<": mean = " << mean << endl;
+
+
 			}
 
 
@@ -171,6 +202,8 @@ void substract(
 
 		smidx = (smidx + 1) % NUM_STREAM_PER_DEVICE;
 	}
+
+	cudaFree(partial);
 	//delete[] devSubstract;
 }
 
@@ -186,6 +219,7 @@ void substract(
 			imgSizeRL						//一张照片在实空间当中所占据的像素点数
 			);
 */
+/*
 __global__ void kernel_substract(
 	int* dev_image,
 	int imgIdx,
@@ -199,6 +233,7 @@ __global__ void kernel_substract(
 
 
 }
+*/
 
 __global__ void
 Reduction1_kernel(int* out, const int* in, size_t N)
@@ -213,6 +248,7 @@ Reduction1_kernel(int* out, const int* in, size_t N)
 	//i的步长是grid当中的block数量*block中线程的数量
 	//in[]存储在全局内存中 输入指针被恰当地对齐，由这段代码发起的全部内存事务将被合并，这将最大限度地提高内存带宽。
 	//也就是说一个cuda线程要去多次访问全局内存，然后把这些值加起来
+	//这个循环实际上也处理了如果N很小，甚至小于tid的情况：sum有初值为0
 	for (size_t i = blockIdx.x * blockDim.x + tid;
 		i < N;
 		i += blockDim.x * gridDim.x)
@@ -250,21 +286,24 @@ Reduction1_kernel(int* out, const int* in, size_t N)
 }
 
 //这里调用两遍kernel函数是必须的
-//非常重要 注意这里kernel函数的参数 ：grid中block的数量==Reduction1_kernel第一个输入参数（一个数组）的长度
+//非常重要 注意这里kernel函数的参数 ：block中threads的数量==Reduction1_kernel第二个输入参数（一个数组）的长度，也就是共享内存sharedSize
 void
-Reduction1(int* answer,		//<out> 指向最终结果的指针
+Reduction_mean(int* answer,		//<out> 指向最终结果的指针
 	int* partial,	//指向存储临时数据 中间数组的指针，应该已经开辟好了空间。数组的长度应该是blockDim.x
 	const int* in, //存储输入数据的指针
-	size_t N,	//输入数据的数量
-	int numBlocks, int numThreads)
+	size_t N,	//输入数据的数量 这里是imgSizeRL
+	int numBlocks, 
+	int numThreads,
+	cudaStream_t& stream)
 {
 	unsigned int sharedSize = numThreads * sizeof(int);
 	//第一次的结果partial只是一个中间结果，并未完全做和
 	Reduction1_kernel <<<
 		numBlocks, 
 		numThreads, 
-		sharedSize >>> (
-			partial,	//长度等于numBlocks，中间结果partial的长度跟numBlocks有关。
+		sharedSize,
+		stream>>> (
+			partial,	//长度等于numThreads，中间结果partial的长度跟numThreads有关。
 			in,			//长度为N
 			N);
 
@@ -272,7 +311,8 @@ Reduction1(int* answer,		//<out> 指向最终结果的指针
 	Reduction1_kernel <<<
 		1, 
 		numThreads, 
-		sharedSize >>> (
+		sharedSize,
+		stream>>> (
 			answer,		//长度为1
 			partial,	//长度为numBlocks
 			numBlocks);
