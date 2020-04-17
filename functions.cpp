@@ -172,6 +172,7 @@ void substractImgG(vector<int*>& imgVec)
 
 		//开始处理当前batch中的每一张图片
 		//将当前batch中的数据都保存到imgData这个一维数组中 注意，这里在读数据的过程中似乎会使用到memoryBazaar
+		//这里可以考虑测试一下使用cudaMemcpy HostToHost 效率会不会高一些
 		for (int i = 0; i < batch; i++)
 		{
 			for (int n = 0; n < dimSizeRL; n++)

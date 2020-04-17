@@ -19,6 +19,7 @@ void cudaInit(vector<int>& iGPU,
 	//cudaError_t result = cudaSetDevice(1);
 	int deviceNum;
 	cudaGetDeviceCount(&deviceNum);
+	cout << "Device Number: " << deviceNum << endl;
 	for (int i = 0; i < deviceNum; i++)
 	{
 		iGPU.push_back(i);
@@ -135,25 +136,57 @@ void substract(
 
 	for (int i = 0; i < nImg;)
 	{
+		//注意这里的跳脱循环不要漏了
+		//注意这里大于等于的条件 等于号不要漏了，否则会出现i=nImg的情况还在继续循环，导致访问不到数据。
+		if (i >= nImg)
+		{
+			break;
+		}
 
 		//多GPU并行 不过本台机器只有一台GPU
 		for (int n = 0; n < nGPU; n++)
 		{
 			//注意这里的跳脱循环不要漏了
-			if (i > nImg)
+			//注意这里大于等于的条件 等于号不要漏了，否则会出现i=nImg的情况还在继续循环，导致访问不到数据。
+			if (i >= nImg)
 			{
 				break;
 			}
 
 			//设定device并且开辟空间，检查错误
 			cudaSetDevice(iGPU[n]);
-			//cudaError_t result = cudaMalloc((void**)&devSubstract[n], imgSizeRL * sizeof(int));
-			//cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
 
 			//对于当前GPU的base stream
 			baseS = n * NUM_STREAM_PER_DEVICE;
 			nImgBatch = (i + BATCH_SIZE < nImg) ? BATCH_SIZE : (nImg - i);
 			
+			cout << "Start from image " << i <<" smidx="<<smidx<<" baseS="<<baseS<< endl;
+			cout << "nImgBatch=" << nImgBatch << endl;
+			cudaError_t result1 = cudaMemcpy(
+				dev_image_buf[smidx + baseS],
+				//imgData + i * imgSizeRL,	//注意指针的偏移量，不用去加sizeof(int)
+				&(imgData[i * imgSizeRL]),
+				nImgBatch * imgSizeRL * sizeof(int),
+				cudaMemcpyHostToDevice	//由于stream当中的存储类型为void*，这里需要先转换指针类型再解引用。
+			);
+			cudaResultCheck(result1, __FILE__, __FUNCTION__, __LINE__);
+			for (int ii = 0; ii < nImgBatch; ii++)
+			{
+				int* test = new int[imgSizeRL];
+				cudaMemcpy(test, &dev_image_buf[smidx + baseS][ii * imgSizeRL], imgSizeRL * sizeof(int), cudaMemcpyDeviceToHost);
+				cout << "Image " << ii<<": ";
+				for (int iii = 0; iii < 16; iii++)
+				{
+					cout << test[iii] << " ";
+				}
+				cout << endl;
+				delete[] test;
+			}
+			
+			//尝试直接获取stream[]
+			cudaStream_t testStream = *((cudaStream_t*)stream[smidx + baseS]);
+			cout << "Success to access stream[" << smidx + baseS << "]" << endl;
+
 
 			//以开始忘了cudaStreamCreate了，所以这里的stream根本没法使用。
 			//将数据从host拷贝到device上
@@ -161,41 +194,51 @@ void substract(
 			cudaError_t result = cudaMemcpyAsync(
 				dev_image_buf[smidx + baseS],
 				imgData + i * imgSizeRL,	//注意指针的偏移量，不用去加sizeof(int)
-				//&(imgData[i * imgSizeRL]),
+				//&(imgData[i * imgSizeRL]),	//这两种指针的用法都是正确的
 				nImgBatch * imgSizeRL * sizeof(int),
 				cudaMemcpyHostToDevice,
 				*((cudaStream_t*)(stream[smidx + baseS]))	//由于stream当中的存储类型为void*，这里需要先转换指针类型再解引用。
 			);
 			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
 
-			for (int r = 0; r < nImgBatch; n++)
+			//这里的下标一开始写错了。。。
+			result = cudaStreamSynchronize(*((cudaStream_t*)stream[smidx + baseS]));
+			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
+
+			//测试memory copy
+			//这一段代码验证了数据的拷贝是没有问题的
+			
+			for (int ii = 0; ii < nImgBatch; ii++)
+			{
+				int* test = new int[imgSizeRL];
+				result = cudaMemcpy(test, &dev_image_buf[smidx + baseS][ii*imgSizeRL],  imgSizeRL * sizeof(int), cudaMemcpyDeviceToHost);
+				for (int iii = 0; iii < 16; iii++)
+				{
+					cout << test[iii] << " ";
+				}
+				cout << endl;
+				delete[] test;
+			}
+			
+
+			for (int r = 0; r < nImgBatch; r++)
 			{
 				//计算偏移量
 				long long shiftRL = (long long)r * imgSizeRL;
-				//一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中
-				/*
-				kernel_substract <<<
-					idim,			//分为idim个block
-					threadInBlock,	//一个block中启动threadInBlock个线程
-					0,
-					*((cudaStream_t*)stream[smidx + baseS])>>>(
-						dev_image_buf[smidx + baseS],	//这里保存了从imgData里面拷贝过来的数据，做了修改之后记得写回去
-						r,								//处理这个batch当中的第r张照片
-						idim,							//一张照片的长度/宽度
-						imgSizeRL						//一张照片在实空间当中所占据的像素点数
-						);
-				*/
+				
+
 				//计算均值
 				int mean;
 				int stddev;
-				
-				Reduction_mean(&mean, 
-					partial, 
-					dev_image_buf[smidx + baseS],
-					imgSizeRL,
-					idim, 
-					THREAD_PER_BLOCK, 
-					*((cudaStream_t*)stream[smidx + baseS]));
+
+				//一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中
+				Reduction_mean(&mean,	//最后要求的结果：均值
+					partial,			//用于存放中间结果的一段device memory
+					&((dev_image_buf[smidx + baseS])[r*imgSizeRL]),	//src data
+					imgSizeRL,			//data size
+					idim,				//grid size 一维
+					THREAD_PER_BLOCK,	//block size 一维
+					*((cudaStream_t*)stream[smidx + baseS]));	//异步拷贝相关的流
 				//计算标准差
 				//TODO
 
@@ -207,15 +250,11 @@ void substract(
 
 			}
 
-
-
 			//一个batch里所有的照片处理完毕之后，应该写回imgData当中
 			//TODO
 
 			i += nImgBatch;
-
 		}
-
 		smidx = (smidx + 1) % NUM_STREAM_PER_DEVICE;
 	}
 
@@ -231,8 +270,12 @@ void substract(
 
 		for (int i = 0; i < NUM_STREAM_PER_DEVICE; i++)
 		{
+			//这一步的同步也很重要
+			cudaError_t result = cudaStreamSynchronize(*((cudaStream_t*)stream[i + baseS]));
+			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
+
 			cout << "Free memory for GPU[" << n << "],stream[" << i << "]" << endl;
-			cudaError_t result = cudaFree(dev_image_buf[i + baseS]);
+			result = cudaFree(dev_image_buf[i + baseS]);
 			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
 		}
 	}
@@ -328,6 +371,21 @@ Reduction_mean(int* answer,		//<out> 指向最终结果的指针
 	cudaStream_t& stream)
 {
 	unsigned int sharedSize = numThreads * sizeof(int);
+
+	//先同步这个流，再做测试
+	cudaError_t result = cudaStreamSynchronize(stream);
+	cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
+
+	cout << "In function Reduction_mean: Try to verify memory access" << endl;
+	int* test = new int[N];
+	cudaMemcpy(test, in, N * sizeof(int), cudaMemcpyDeviceToHost);
+	for (int i = 0; i < 32; i++)
+	{
+		cout << test[i] << " ";
+	}
+	cout << endl;
+	delete[] test;
+
 	//第一次的结果partial只是一个中间结果，并未完全做和
 	Reduction1_kernel <<<
 		numBlocks, 
@@ -338,13 +396,30 @@ Reduction_mean(int* answer,		//<out> 指向最终结果的指针
 			in,			//长度为N
 			N);
 
+	result = cudaStreamSynchronize(stream);
+	cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
+
+	int* dev_mean;
+	cudaMalloc(&dev_mean, sizeof(int));
 	//第二次结果answer才是最终的计算结果。
-	Reduction1_kernel <<<
-		1, 
-		numThreads, 
+	Reduction1_kernel << <
+		1,
+		numThreads,
 		sharedSize,
-		stream>>> (
-			answer,		//长度为1
+		stream >> > (
+			//answer,		//长度为1
+			dev_mean,
 			partial,	//长度为numBlocks
 			numBlocks);
+
+	result = cudaStreamSynchronize(stream);
+	cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
+
+	//经过了这一步，才真正得到了结果
+	cudaMemcpyAsync(answer, dev_mean, sizeof(int), cudaMemcpyDeviceToHost, stream);
+
+	//求和之后计算均值
+	*answer = *answer / N;
+
+	cudaFree(dev_mean);
 }

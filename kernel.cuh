@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <vector>
 
-#define THREAD_PER_BLOCK 512	//与cuthunder.cu当中一致
+#define THREAD_PER_BLOCK 32	//与cuthunder.cu当中不一致
 #define NUM_STREAM_PER_DEVICE 3	
 #define IMAGE_TOTAL_NUM 256		//在function.h中也有定义 图片的总数本身不要设置为一个太大的值
 #define IMAGE_BATCH (IMAGE_TOTAL_NUM/4)	//在function.h中也有定义 这是在CPU上分割的batch大小 假定batch的大小为总数的四分之一
