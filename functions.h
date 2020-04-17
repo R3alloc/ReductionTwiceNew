@@ -6,8 +6,12 @@
 #include "kernel.cuh"	//为了调用一些在GPU上执行的代码
 
 
+//#define IMAGE_SIZE (1024*1024)
+//#define IMAGE_WIDTH 1024
+
 #define IMAGE_SIZE (64*64)
 #define IMAGE_WIDTH 64
+
 #define PIXEL_VALUE_MAX 256
 #define SHOW_IMAGE_NUM 16
 #define SHOW_IMAGE_PIXEL 16

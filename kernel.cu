@@ -136,17 +136,12 @@ void substract(
 
 	for (int i = 0; i < nImg;)
 	{
-		//注意这里的跳脱循环不要漏了
-		//注意这里大于等于的条件 等于号不要漏了，否则会出现i=nImg的情况还在继续循环，导致访问不到数据。
-		if (i >= nImg)
-		{
-			break;
-		}
 
 		//多GPU并行 不过本台机器只有一台GPU
 		for (int n = 0; n < nGPU; n++)
 		{
 			//注意这里的跳脱循环不要漏了
+			//实际上跳脱出这一层循环之后，也就进入了外层循环i<nImg的判断，也就跳出了外层循环。
 			//注意这里大于等于的条件 等于号不要漏了，否则会出现i=nImg的情况还在继续循环，导致访问不到数据。
 			if (i >= nImg)
 			{
@@ -161,33 +156,7 @@ void substract(
 			nImgBatch = (i + BATCH_SIZE < nImg) ? BATCH_SIZE : (nImg - i);
 			
 			cout << "Start from image " << i <<" smidx="<<smidx<<" baseS="<<baseS<< endl;
-			cout << "nImgBatch=" << nImgBatch << endl;
-			cudaError_t result1 = cudaMemcpy(
-				dev_image_buf[smidx + baseS],
-				//imgData + i * imgSizeRL,	//注意指针的偏移量，不用去加sizeof(int)
-				&(imgData[i * imgSizeRL]),
-				nImgBatch * imgSizeRL * sizeof(int),
-				cudaMemcpyHostToDevice	//由于stream当中的存储类型为void*，这里需要先转换指针类型再解引用。
-			);
-			cudaResultCheck(result1, __FILE__, __FUNCTION__, __LINE__);
-			for (int ii = 0; ii < nImgBatch; ii++)
-			{
-				int* test = new int[imgSizeRL];
-				cudaMemcpy(test, &dev_image_buf[smidx + baseS][ii * imgSizeRL], imgSizeRL * sizeof(int), cudaMemcpyDeviceToHost);
-				cout << "Image " << ii<<": ";
-				for (int iii = 0; iii < 16; iii++)
-				{
-					cout << test[iii] << " ";
-				}
-				cout << endl;
-				delete[] test;
-			}
 			
-			//尝试直接获取stream[]
-			cudaStream_t testStream = *((cudaStream_t*)stream[smidx + baseS]);
-			cout << "Success to access stream[" << smidx + baseS << "]" << endl;
-
-
 			//以开始忘了cudaStreamCreate了，所以这里的stream根本没法使用。
 			//将数据从host拷贝到device上
 			//异步拷贝
@@ -200,33 +169,12 @@ void substract(
 				*((cudaStream_t*)(stream[smidx + baseS]))	//由于stream当中的存储类型为void*，这里需要先转换指针类型再解引用。
 			);
 			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
-
-			//这里的下标一开始写错了。。。
-			result = cudaStreamSynchronize(*((cudaStream_t*)stream[smidx + baseS]));
-			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
-
-			//测试memory copy
-			//这一段代码验证了数据的拷贝是没有问题的
 			
-			for (int ii = 0; ii < nImgBatch; ii++)
-			{
-				int* test = new int[imgSizeRL];
-				result = cudaMemcpy(test, &dev_image_buf[smidx + baseS][ii*imgSizeRL],  imgSizeRL * sizeof(int), cudaMemcpyDeviceToHost);
-				for (int iii = 0; iii < 16; iii++)
-				{
-					cout << test[iii] << " ";
-				}
-				cout << endl;
-				delete[] test;
-			}
-			
-
 			for (int r = 0; r < nImgBatch; r++)
 			{
 				//计算偏移量
 				long long shiftRL = (long long)r * imgSizeRL;
 				
-
 				//计算均值
 				int mean;
 				int stddev;
@@ -246,8 +194,6 @@ void substract(
 				//TODO
 
 				cout <<"Image "<<r<<": mean = " << mean << endl;
-
-
 			}
 
 			//一个batch里所有的照片处理完毕之后，应该写回imgData当中
@@ -281,34 +227,7 @@ void substract(
 	}
 }
 
-/*一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中
-	kernel_substract << <
-		idim,			//分为idim个block
-		threadInBlock,	//一个block中启动threadInBlock个线程
-		0,
-		*((cudaStream_t*)stream[smidx + baseS]) >> > (
-			dev_image_buf[smidx + baseS],	//这里保存了从imgData里面拷贝过来的数据，做了修改之后记得写回去
-			r,								//处理这个batch当中的第r张照片
-			idim,							//一张照片的长度/宽度
-			imgSizeRL						//一张照片在实空间当中所占据的像素点数
-			);
-*/
-/*
-__global__ void kernel_substract(
-	int* dev_image,
-	int imgIdx,
-	int dim,
-	size_t imgSizeRL
-	)
-{
-	//grid中的block是一维组织，block中的线程也是一维组织
-	int tid = threadIdx.x + blockDim.x * blockIdx.x;
-
-
-
-}
-*/
-
+/*一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中*/
 __global__ void
 Reduction1_kernel(int* out, const int* in, size_t N)
 {
@@ -372,20 +291,6 @@ Reduction_mean(int* answer,		//<out> 指向最终结果的指针
 {
 	unsigned int sharedSize = numThreads * sizeof(int);
 
-	//先同步这个流，再做测试
-	cudaError_t result = cudaStreamSynchronize(stream);
-	cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
-
-	cout << "In function Reduction_mean: Try to verify memory access" << endl;
-	int* test = new int[N];
-	cudaMemcpy(test, in, N * sizeof(int), cudaMemcpyDeviceToHost);
-	for (int i = 0; i < 32; i++)
-	{
-		cout << test[i] << " ";
-	}
-	cout << endl;
-	delete[] test;
-
 	//第一次的结果partial只是一个中间结果，并未完全做和
 	Reduction1_kernel <<<
 		numBlocks, 
@@ -395,9 +300,6 @@ Reduction_mean(int* answer,		//<out> 指向最终结果的指针
 			partial,	//长度等于numThreads，中间结果partial的长度跟numThreads有关。
 			in,			//长度为N
 			N);
-
-	result = cudaStreamSynchronize(stream);
-	cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
 
 	int* dev_mean;
 	cudaMalloc(&dev_mean, sizeof(int));
@@ -412,8 +314,6 @@ Reduction_mean(int* answer,		//<out> 指向最终结果的指针
 			partial,	//长度为numBlocks
 			numBlocks);
 
-	result = cudaStreamSynchronize(stream);
-	cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
 
 	//经过了这一步，才真正得到了结果
 	cudaMemcpyAsync(answer, dev_mean, sizeof(int), cudaMemcpyDeviceToHost, stream);
