@@ -190,10 +190,19 @@ void substract(
 				//计算标准差
 				//TODO
 
+				Reduction_stddev(&stddev,
+					partial,
+					&((dev_image_buf[smidx + baseS])[r * imgSizeRL]),	//src data
+					mean,
+					imgSizeRL,			//data size
+					idim,				//grid size 一维
+					THREAD_PER_BLOCK,	//block size 一维
+					*((cudaStream_t*)stream[smidx + baseS]));	//异步拷贝相关的流
+
 				//处理dev_image_buf当中的数据
 				//TODO
 
-				cout <<"Image "<<r<<": mean = " << mean << endl;
+				cout <<"Image "<<r<<": mean = " << mean <<" stddev= "<<stddev<< endl;
 			}
 
 			//一个batch里所有的照片处理完毕之后，应该写回imgData当中
@@ -230,7 +239,7 @@ void substract(
 /*一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中*/
 //计算均值
 __global__ void
-kernel_reductionMean(RFLOAT* out, const RFLOAT* in, size_t N)
+kernel_reductionSum(RFLOAT* out, const RFLOAT* in, size_t N)
 {
 	//这个数组的大小与blockSize有关（也就是blockDim.x）
 	//注意这个数组在这里定义的时候虽然没有指定大小，但是在调用这个kernel的时候有一个核函数参数就是用来控制kernel内部使用共享内存的大小。
@@ -279,10 +288,11 @@ kernel_reductionMean(RFLOAT* out, const RFLOAT* in, size_t N)
 	}
 }
 
-/*一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中*/
-//计算标准差
+
+//计算用于计算平方差之和的kernel 
+//Sum Of Square Variances
 __global__ void
-kernel_reductionStddev(RFLOAT* out, const RFLOAT* in, const RFLOAT mean, size_t N)
+kernel_reductionSumOfSquareVar(RFLOAT* out, const RFLOAT* in, const RFLOAT mean, size_t N)
 {
 
 	extern __shared__ RFLOAT sPartials[];
@@ -328,6 +338,52 @@ kernel_reductionStddev(RFLOAT* out, const RFLOAT* in, const RFLOAT mean, size_t 
 	}
 }
 
+void Reduction_stddev(RFLOAT* answer,
+	RFLOAT* partial,
+	const RFLOAT* in,
+	const RFLOAT mean,
+	size_t N,
+	int numBlocks,
+	int numThreads,
+	cudaStream_t& stream)
+{
+	size_t sharedSize = numThreads * sizeof(RFLOAT);
+	RFLOAT* dev_sumOfSquareVar;	//用于存储平方差之和
+
+	cudaMalloc(&dev_sumOfSquareVar, sizeof(RFLOAT));
+
+	//第一次的结果partial只是一个中间结果，中间数组保存的是一些平方差的和
+	kernel_reductionSumOfSquareVar << <
+		numBlocks,
+		numThreads,
+		sharedSize,
+		stream >> > (
+			partial,	//长度等于numThreads，中间结果partial的长度跟numThreads有关。
+			in,			//长度为N
+			mean,
+			N
+			);
+
+	//第二次结果answer才是最终的计算结果。
+	kernel_reductionSum << <
+		1,
+		numThreads,
+		sharedSize,
+		stream >> > (
+			//answer,		//长度为1
+			dev_sumOfSquareVar,
+			partial,	//长度为numBlocks
+			numBlocks);
+
+
+	//经过了这一步，才真正得到了结果
+	cudaMemcpyAsync(answer, dev_sumOfSquareVar, sizeof(RFLOAT), cudaMemcpyDeviceToHost, stream);
+
+	//求和之后计算标准差
+	*answer = sqrt(*answer / N);
+
+	cudaFree(dev_sumOfSquareVar);
+}
 
 //这里调用两遍kernel函数是必须的
 //非常重要 注意这里kernel函数的参数 ：block中threads的数量==Reduction1_kernel第二个输入参数（一个数组）的长度，也就是共享内存sharedSize
@@ -340,13 +396,13 @@ Reduction_mean(RFLOAT* answer,		//<out> 指向最终结果的指针
 	int numThreads,
 	cudaStream_t& stream)
 {
-	RFLOAT sharedSize = numThreads * sizeof(RFLOAT);
+	size_t sharedSize = numThreads * sizeof(RFLOAT);
 	RFLOAT* dev_mean;
 
 	cudaMalloc(&dev_mean, sizeof(RFLOAT));
 
 	//第一次的结果partial只是一个中间结果，并未完全做和
-	kernel_reductionMean <<<
+	kernel_reductionSum <<<
 		numBlocks, 
 		numThreads, 
 		sharedSize,
@@ -356,7 +412,7 @@ Reduction_mean(RFLOAT* answer,		//<out> 指向最终结果的指针
 			N);
 
 	//第二次结果answer才是最终的计算结果。
-	kernel_reductionMean << <
+	kernel_reductionSum <<<
 		1,
 		numThreads,
 		sharedSize,

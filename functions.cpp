@@ -27,6 +27,7 @@ void imgVecFree(
 	{
 		cout << "vector size is not equal with image number" << endl;
 	}
+
 	for (int i = 0; i < imageNum; i++)
 	{
 		RFLOAT* imgData = imgVec.back();
