@@ -53,14 +53,14 @@ void cudaEndUp(vector<int>& iGPU,
 	*/
 }
 
-void devMalloc(float** devData, int dataSize)
+void devMalloc(RFLOAT** devData, int dataSize)
 {
 	cudaError_t result = cudaMalloc((void**)devData, dataSize);
 	cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
 	return;
 }
 
-void hostRegister(float* imgData, int dataSizeByte)
+void hostRegister(RFLOAT* imgData, int dataSizeByte)
 {
 	//注意使用cudaMemcpyAsync的时候用到了stream，要求使用锁页内存。
 	//下面的两种方法应该都可以，一个是将已经分配的一段内存register为锁页内存
@@ -71,7 +71,7 @@ void hostRegister(float* imgData, int dataSizeByte)
 	return;
 }
 
-void hostFree(float* imgData)
+void hostFree(RFLOAT* imgData)
 {
 	cudaError_t result =  cudaHostUnregister(imgData);
 	cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
@@ -82,7 +82,7 @@ void hostFree(float* imgData)
 void substract(
 	vector<void*>& stream,	//这里使用vector，要在头文件中包括进来
 	vector<int>& iGPU,
-	float* imgData,	//imgData当中存储了IMAGE_TOTAL_NUM张照片，但是会在多GPU，多stream当中，再次拆分一次
+	RFLOAT* imgData,	//imgData当中存储了IMAGE_TOTAL_NUM张照片，但是会在多GPU，多stream当中，再次拆分一次
 	int idim,		//reMask里这个值传入的是_para.size,是图像一条边的长度。
 	int nImg,		//交给substract函数处理的图片总数，在function.cpp当中也是一个batch，一般大小为IMAGE_BATCH
 	int nGPU
@@ -90,10 +90,10 @@ void substract(
 {
 	//LOG(INFO) << "Subtract begin.";
 
-	//每个GPU对应一个float*
+	//每个GPU对应一个RFLOAT*
 	//已写delete空间代码
 	//这一段是不需要的 在reMask当中有这么一段是为了给每台GPU一个mask以方便计算
-	//float** devSubstract = new float*[nGPU];
+	//RFLOAT** devSubstract = new RFLOAT*[nGPU];
 
 	//一个image的像素点数量
 	size_t imgSizeRL = idim * idim;
@@ -104,7 +104,7 @@ void substract(
 	//这个数组当中存储的是指针，每个指针都指向一整段空间地址（能存储BATCH_SIZE张image）
 	//int** dev_image_buf = new int*[nStream];
 	//int* dev_image_buf[nStream];
-	float** dev_image_buf = (float**)malloc(sizeof(float*)*nStream);
+	RFLOAT** dev_image_buf = (RFLOAT**)malloc(sizeof(RFLOAT*)*nStream);
 
 	int threadInBlock = (idim > THREAD_PER_BLOCK) ? THREAD_PER_BLOCK : idim;
 
@@ -123,7 +123,7 @@ void substract(
 		for (int i = 0; i < NUM_STREAM_PER_DEVICE; i++)
 		{
 			cout << "Allocate memory for GPU[" << n << "],stream[" << i << "]" << endl;
-			cudaError_t result = cudaMalloc((void**)&dev_image_buf[i + baseS], BATCH_SIZE * imgSizeRL * sizeof(float));
+			cudaError_t result = cudaMalloc((void**)&dev_image_buf[i + baseS], BATCH_SIZE * imgSizeRL * sizeof(RFLOAT));
 			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
 		}
 	}
@@ -131,8 +131,8 @@ void substract(
 	//LOG(INFO) << "alloc memory done, begin to calculate...";
 
 	//已释放
-	float* partial;
-	cudaMalloc((void**)&partial, THREAD_PER_BLOCK * sizeof(float));
+	RFLOAT* partial;
+	cudaMalloc((void**)&partial, THREAD_PER_BLOCK * sizeof(RFLOAT));
 
 	for (int i = 0; i < nImg;)
 	{
@@ -162,9 +162,9 @@ void substract(
 			//异步拷贝
 			cudaError_t result = cudaMemcpyAsync(
 				dev_image_buf[smidx + baseS],
-				imgData + i * imgSizeRL,	//注意指针的偏移量，不用去加sizeof(float)
+				imgData + i * imgSizeRL,	//注意指针的偏移量，不用去加sizeof(RFLOAT)
 				//&(imgData[i * imgSizeRL]),	//这两种指针的用法都是正确的
-				nImgBatch * imgSizeRL * sizeof(float),
+				nImgBatch * imgSizeRL * sizeof(RFLOAT),
 				cudaMemcpyHostToDevice,
 				*((cudaStream_t*)(stream[smidx + baseS]))	//由于stream当中的存储类型为void*，这里需要先转换指针类型再解引用。
 			);
@@ -176,8 +176,8 @@ void substract(
 				long long shiftRL = (long long)r * imgSizeRL;
 				
 				//计算均值
-				float mean;
-				float stddev;
+				RFLOAT mean;
+				RFLOAT stddev;
 
 				//一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中
 				Reduction_mean(&mean,	//最后要求的结果：均值
@@ -230,12 +230,12 @@ void substract(
 /*一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中*/
 //计算均值
 __global__ void
-kernel_reductionMean(float* out, const float* in, size_t N)
+kernel_reductionMean(RFLOAT* out, const RFLOAT* in, size_t N)
 {
 	//这个数组的大小与blockSize有关（也就是blockDim.x）
 	//注意这个数组在这里定义的时候虽然没有指定大小，但是在调用这个kernel的时候有一个核函数参数就是用来控制kernel内部使用共享内存的大小。
-	extern __shared__ float sPartials[];
-	float sum = 0;
+	extern __shared__ RFLOAT sPartials[];
+	RFLOAT sum = 0;
 	//tid是当前线程在当前block中的索引
 	const int tid = threadIdx.x;
 	//i是当前线程在所有线程中的索引
@@ -282,13 +282,13 @@ kernel_reductionMean(float* out, const float* in, size_t N)
 /*一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中*/
 //计算标准差
 __global__ void
-kernel_reductionStddev(float* out, const float* in, const float mean, size_t N)
+kernel_reductionStddev(RFLOAT* out, const RFLOAT* in, const RFLOAT mean, size_t N)
 {
 
-	extern __shared__ float sPartials[];
+	extern __shared__ RFLOAT sPartials[];
 
-	//这里使用long long float是为了避免模拟的时候值溢出
-	float sum = 0;
+	//这里使用long long RFLOAT是为了避免模拟的时候值溢出
+	RFLOAT sum = 0;
 	//tid是当前线程在当前block中的索引
 	const int tid = threadIdx.x;
 
@@ -296,8 +296,7 @@ kernel_reductionStddev(float* out, const float* in, const float mean, size_t N)
 		i < N;
 		i += blockDim.x * gridDim.x)
 	{
-		//为了减少模拟的麻烦，在这里直接先除以N。。。
-		sum += (in[i] - mean)* (in[i] - mean)/N;
+		sum += (in[i] - mean)* (in[i] - mean);
 	}
 
 	//每个线程把它得到的累计值写入共享内存
@@ -329,21 +328,22 @@ kernel_reductionStddev(float* out, const float* in, const float mean, size_t N)
 	}
 }
 
+
 //这里调用两遍kernel函数是必须的
 //非常重要 注意这里kernel函数的参数 ：block中threads的数量==Reduction1_kernel第二个输入参数（一个数组）的长度，也就是共享内存sharedSize
 void
-Reduction_mean(float* answer,		//<out> 指向最终结果的指针
-	float* partial,	//指向存储临时数据 中间数组的指针，应该已经开辟好了空间。数组的长度应该是blockDim.x
-	const float* in, //存储输入数据的指针
+Reduction_mean(RFLOAT* answer,		//<out> 指向最终结果的指针
+	RFLOAT* partial,	//指向存储临时数据 中间数组的指针，应该已经开辟好了空间。数组的长度应该是blockDim.x
+	const RFLOAT* in, //存储输入数据的指针
 	size_t N,	//输入数据的数量 这里是imgSizeRL
 	int numBlocks, 
 	int numThreads,
 	cudaStream_t& stream)
 {
-	float sharedSize = numThreads * sizeof(float);
-	float* dev_mean;
+	RFLOAT sharedSize = numThreads * sizeof(RFLOAT);
+	RFLOAT* dev_mean;
 
-	cudaMalloc(&dev_mean, sizeof(float));
+	cudaMalloc(&dev_mean, sizeof(RFLOAT));
 
 	//第一次的结果partial只是一个中间结果，并未完全做和
 	kernel_reductionMean <<<
@@ -368,7 +368,7 @@ Reduction_mean(float* answer,		//<out> 指向最终结果的指针
 
 
 	//经过了这一步，才真正得到了结果
-	cudaMemcpyAsync(answer, dev_mean, sizeof(float), cudaMemcpyDeviceToHost, stream);
+	cudaMemcpyAsync(answer, dev_mean, sizeof(RFLOAT), cudaMemcpyDeviceToHost, stream);
 
 	//求和之后计算均值
 	*answer = *answer / N;

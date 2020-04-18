@@ -19,23 +19,24 @@
 #define IMAGE_TOTAL_NUM 256		//图片的总数本身不要设置为一个太大的值
 #define IMAGE_BATCH (IMAGE_TOTAL_NUM/4)	//这是在CPU上分割的batch大小 假定batch的大小为总数的四分之一
 
+#define RFLOAT float
 
 using namespace std;
 
-void imgVecInit(vector<float*>& imgVec, int imageNum);
+void imgVecInit(vector<RFLOAT*>& imgVec, int imageNum);
 
-void imgVecFree(vector<float*>& imgVec, int imageNum);
+void imgVecFree(vector<RFLOAT*>& imgVec, int imageNum);
 
-void imgVecRandomGen(vector<float*>& imgVec);
+void imgVecRandomGen(vector<RFLOAT*>& imgVec);
 
-void imgVecShow(vector<float*>& imgVec);
+void imgVecShow(vector<RFLOAT*>& imgVec);
 
-void imgVecCpy(vector<float*>& srcImgVec, vector<float*>& dstImgVec, int imageNum);
+void imgVecCpy(vector<RFLOAT*>& srcImgVec, vector<RFLOAT*>& dstImgVec, int imageNum);
 
-void substractImg(vector<float*>& imgVec);
+void substractImg(vector<RFLOAT*>& imgVec);
 
-void bgMeanStddev(vector<float>& bg, float& mean, float& stddev, int imageNum);
+void bgMeanStddev(vector<RFLOAT>& bg, RFLOAT& mean, RFLOAT& stddev, int imageNum);
 
-void substractImgG(vector<float*>& imgVec);
+void substractImgG(vector<RFLOAT*>& imgVec);
 
 

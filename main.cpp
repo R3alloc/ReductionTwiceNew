@@ -4,13 +4,13 @@
 using namespace std;
 
 
-float main()
+RFLOAT main()
 {
 	
-	vector<float*> imgVec;
-	vector<float*> oriImgVec;
-	vector<float*> cudaImgVec;
-	float imageNum = IMAGE_TOTAL_NUM;
+	vector<RFLOAT*> imgVec;
+	vector<RFLOAT*> oriImgVec;
+	vector<RFLOAT*> cudaImgVec;
+	RFLOAT imageNum = IMAGE_TOTAL_NUM;
 
 	imgVecInit(imgVec, imageNum);
 	imgVecInit(oriImgVec, imageNum);
@@ -26,8 +26,6 @@ float main()
 	imgVecShow(imgVec);
 
 	substractImgG(cudaImgVec);
-
-	
 
 	imgVecFree(imgVec, imageNum);
 	imgVecFree(oriImgVec, imageNum);

@@ -5,13 +5,13 @@
 
 //³õÊ¼»¯Ò»¸ö´æ´¢¶à¸öimageµÄvector£¬ÎªÃ¿¸öimage·ÖÅä¿Õ¼ä
 void imgVecInit(
-	vector<float*>& imgVec,	/**< [inout] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓÃ  */
+	vector<RFLOAT*>& imgVec,	/**< [inout] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓÃ  */
 	int imageNum			/**< [in] imageÊıÁ¿£¬Ò²ÊÇvectorµÄ´óĞ¡  */
 ) 
 {
 	for (int i = 0; i < imageNum; i++)
 	{
-		float* imgData = new float[IMAGE_SIZE];
+		RFLOAT* imgData = new RFLOAT[IMAGE_SIZE];
 		imgVec.push_back(imgData);
 	}
 	cout << "image vector init finished!" << endl;
@@ -19,7 +19,7 @@ void imgVecInit(
 
 //ÊÍ·ÅimgVecµ±ÖĞËùÓĞÖ¸ÕëËùÖ¸ÏòµÄ¿Õ¼ä
 void imgVecFree(
-	vector<float*>& imgVec,	/**< [inout] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓÃ  */
+	vector<RFLOAT*>& imgVec,	/**< [inout] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓÃ  */
 	int imageNum			/**< [in] imageÊıÁ¿£¬Ò²ÊÇvectorµÄ´óĞ¡  */
 )
 {
@@ -29,7 +29,7 @@ void imgVecFree(
 	}
 	for (int i = 0; i < imageNum; i++)
 	{
-		float* imgData = imgVec.back();
+		RFLOAT* imgData = imgVec.back();
 		delete[] imgData;
 		imgVec.pop_back();
 	}
@@ -37,11 +37,11 @@ void imgVecFree(
 }
 
 //ÎªimgVecÖĞËùÓĞµÄÍ¼Æ¬£¬Éú³ÉËæ»úÏñËØÖµ
-void imgVecRandomGen(vector<float*>& imgVec /**< [inout] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓÃ  */ )
+void imgVecRandomGen(vector<RFLOAT*>& imgVec /**< [inout] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓÃ  */ )
 {
 	srand((unsigned int)(time(NULL)));
 	//×¢Òâµü´úÆ÷µÄ¶¨Òå·½·¨
-	for (vector<float*>::iterator it = imgVec.begin(); it != imgVec.end(); it++)
+	for (vector<RFLOAT*>::iterator it = imgVec.begin(); it != imgVec.end(); it++)
 	{
 		for (int i = 0; i < IMAGE_SIZE; i++)
 		{
@@ -52,7 +52,7 @@ void imgVecRandomGen(vector<float*>& imgVec /**< [inout] ´æ´¢¶à¸öimageÖ¸ÕëµÄvect
 }
 
 //Ö±½ÓÏÔÊ¾Ò»²¿·ÖÍ¼Æ¬µÄ²¿·ÖÏñËØÖµ
-void imgVecShow(vector<float*>& imgVec /**< [inout] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓÃ  */)
+void imgVecShow(vector<RFLOAT*>& imgVec /**< [inout] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓÃ  */)
 {
 	cout << "Show part of image in image vector" << endl;
 	for (int imgIdx=0;imgIdx<SHOW_IMAGE_NUM;imgIdx++)
@@ -66,8 +66,8 @@ void imgVecShow(vector<float*>& imgVec /**< [inout] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓ
 }
 
 void imgVecCpy(
-	vector<float*>& srcImgVec, /**< [in] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓÃ  */
-	vector<float*>& dstImgVec, /**< [out] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓÃ  */
+	vector<RFLOAT*>& srcImgVec, /**< [in] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓÃ  */
+	vector<RFLOAT*>& dstImgVec, /**< [out] ´æ´¢¶à¸öimageÖ¸ÕëµÄvectorÒıÓÃ  */
 	int imageNum				/**< [in] Í¼Æ¬ÊıÁ¿  */
 )
 {
@@ -81,20 +81,20 @@ void imgVecCpy(
 	cout << "image vector copy finished" << endl;
 	
 }
-void substractImg(vector<float*>& imgVec)
+void substractImg(vector<RFLOAT*>& imgVec)
 {
-	float radius = RADIUS;
+	RFLOAT radius = RADIUS;
 	int imageNum = imgVec.size();
 
 	//´¦ÀíÃ¿Ò»ÕÅÍ¼Æ¬
 	for (int i = 0; i < imgVec.size(); i++)
 	{
-		float* image = imgVec[i];
-		float mean;
-		float stddev;
+		RFLOAT* image = imgVec[i];
+		RFLOAT mean;
+		RFLOAT stddev;
 
 		//´Ë´¦Ä£ÄâÒÔÍ¼ÏñµÄ×óÉÏ½Ç¶¥µãÎªÔ­µãÀ´»­°ë¾¶ °ë¾¶Ö®Íâ¶¼Ëã±³¾°
-		vector<float> bg;
+		vector<RFLOAT> bg;
 		for (int pxlIdx = 0; pxlIdx < IMAGE_SIZE; pxlIdx++)
 		{
 			int row = pxlIdx / IMAGE_WIDTH;
@@ -117,29 +117,29 @@ void substractImg(vector<float*>& imgVec)
 	
 }
 
-void bgMeanStddev(vector<float>& bg, float& mean, float& stddev, int imageNum)
+void bgMeanStddev(vector<RFLOAT>& bg, RFLOAT& mean, RFLOAT& stddev, int imageNum)
 {
-	float sum = 0;
-	for (vector<float>::iterator it = bg.begin(); it != bg.end(); it++)
+	RFLOAT sum = 0;
+	for (vector<RFLOAT>::iterator it = bg.begin(); it != bg.end(); it++)
 	{
 		sum += (*it);
 	}
 	mean = sum / bg.size();
 
 	//±ê×¼²î£º±ê×¼ÖµÓëÆäÆ½¾ùÊıÀë²îÆ½·½µÄËãÊõÆ½¾ùÊıµÄÆ½·½¸ù
-	//long float quadSum = 0;
-	//×¢ÒâÕâÀïÒªÓÃlong long float²Å²»»áÒç³ö
-	float quadSum = 0;
-	for (vector<float>::iterator it = bg.begin(); it != bg.end(); it++)
+	//long RFLOAT quadSum = 0;
+	//×¢ÒâÕâÀïÒªÓÃlong long RFLOAT²Å²»»áÒç³ö
+	RFLOAT quadSum = 0;
+	for (vector<RFLOAT>::iterator it = bg.begin(); it != bg.end(); it++)
 	{
-		float curPixel = *it;
+		RFLOAT curPixel = *it;
 		quadSum += pow( (curPixel - mean),2);
 	}
 	stddev = sqrt(quadSum / bg.size());
 
 }
 
-void substractImgG(vector<float*>& imgVec)
+void substractImgG(vector<RFLOAT*>& imgVec)
 {
 	//Èç¹ûÊÇÖ÷Ïß³Ì£¬¾ÍÍË³ö¡£ÊÇ¼ÆËãÏß³Ì£¬ÔÙ²ÎÓë¼ÆËã¡£
 	//TODO
@@ -151,14 +151,14 @@ void substractImgG(vector<float*>& imgVec)
 	cudaInit(_iGPU, _stream);
 	//Ä£Äâ
 
-	float* image;
-	float mean;
-	float stddev;
+	RFLOAT* image;
+	RFLOAT mean;
+	RFLOAT stddev;
 	int nImg = IMAGE_TOTAL_NUM;	//Òª´¦ÀíµÄÍ¼Æ¬×ÜÊı
 	int batch = IMAGE_BATCH;	//Ò»´Î´¦ÀíÍ¼Æ¬µÄÊıÁ¿
 	int dimSizeRL = IMAGE_SIZE;	//Ò»ÕÅÍ¼Æ¬ÔÚÊµ¿Õ¼äµ±ÖĞµÄÏñËØÊıÁ¿
-	float* imgData = (float*)malloc(sizeof(float) * IMAGE_BATCH * dimSizeRL);
-	hostRegister(imgData, IMAGE_BATCH * dimSizeRL*sizeof(float));
+	RFLOAT* imgData = (RFLOAT*)malloc(sizeof(RFLOAT) * IMAGE_BATCH * dimSizeRL);
+	hostRegister(imgData, IMAGE_BATCH * dimSizeRL*sizeof(RFLOAT));
 	
 	//lÏàµ±ÓÚÃ¿Ò»ÂÖÑ­»·ÖĞµÄÒ»¸öbase£¬Æ«ÒÆ»ù×¼¡£
 	for (int l = 0; l < nImg;)
