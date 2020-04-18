@@ -82,7 +82,8 @@ void imgVecCpy(
 	cout << "image vector copy finished" << endl;
 	
 }
-void substractImg(vector<RFLOAT*>& imgVec)
+
+void substractImgBg(vector<RFLOAT*>& imgVec)
 {
 	RFLOAT radius = RADIUS;
 	int imageNum = imgVec.size();
@@ -140,7 +141,7 @@ void bgMeanStddev(vector<RFLOAT>& bg, RFLOAT& mean, RFLOAT& stddev, int imageNum
 
 }
 
-void substractImgG(vector<RFLOAT*>& imgVec)
+void substractImgBgG(vector<RFLOAT*>& imgVec)
 {
 	//如果是主线程，就退出。是计算线程，再参与计算。
 	//TODO

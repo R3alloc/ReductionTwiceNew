@@ -34,11 +34,11 @@ void substract(vector<void*>& stream, vector<int>& iGPU, RFLOAT* imgData, int id
 
 __global__ void kernel_reductionSum(RFLOAT* out, const RFLOAT* in, size_t N);
 
-__global__ void kernel_reductionQuadSum(RFLOAT* out, const RFLOAT* in, const RFLOAT mean, size_t N);
+__global__ void kernel_reductionSumOfSquareVar(RFLOAT* out, const RFLOAT* in, const RFLOAT mean, size_t N);
 
 
 
-void Reduction_stddev(RFLOAT* answer, RFLOAT* partial, const RFLOAT* in, const RFLOAT mean, size_t N, int numBlocks, int numThreads, cudaStream_t& stream);
+void reductionStddev(RFLOAT* answer, RFLOAT* partial, const RFLOAT* in, const RFLOAT mean, size_t N, int numBlocks, int numThreads, cudaStream_t& stream);
 
-void Reduction_mean(RFLOAT* answer, RFLOAT* partial, const RFLOAT* in, size_t N, int numBlocks, int numThreads, cudaStream_t& stream);
+void reductionMean(RFLOAT* answer, RFLOAT* partial, const RFLOAT* in, size_t N, int numBlocks, int numThreads, cudaStream_t& stream);
 

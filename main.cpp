@@ -22,10 +22,10 @@ RFLOAT main()
 	imgVecCpy( oriImgVec, imgVec, imageNum);
 	//imgVecShow(oriImgVec);
 	imgVecCpy(oriImgVec, cudaImgVec, imageNum);
-	substractImg(imgVec);
+	substractImgBg(imgVec);
 	imgVecShow(imgVec);
 
-	substractImgG(cudaImgVec);
+	substractImgBgG(cudaImgVec);
 
 	imgVecFree(imgVec, imageNum);
 	imgVecFree(oriImgVec, imageNum);

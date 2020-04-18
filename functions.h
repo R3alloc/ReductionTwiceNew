@@ -33,10 +33,10 @@ void imgVecShow(vector<RFLOAT*>& imgVec);
 
 void imgVecCpy(vector<RFLOAT*>& srcImgVec, vector<RFLOAT*>& dstImgVec, int imageNum);
 
-void substractImg(vector<RFLOAT*>& imgVec);
+void substractImgBg(vector<RFLOAT*>& imgVec);
 
 void bgMeanStddev(vector<RFLOAT>& bg, RFLOAT& mean, RFLOAT& stddev, int imageNum);
 
-void substractImgG(vector<RFLOAT*>& imgVec);
+void substractImgBgG(vector<RFLOAT*>& imgVec);
 
 

@@ -180,17 +180,16 @@ void substract(
 				RFLOAT stddev;
 
 				//一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中
-				Reduction_mean(&mean,	//最后要求的结果：均值
+				reductionMean(&mean,	//最后要求的结果：均值
 					partial,			//用于存放中间结果的一段device memory
 					&((dev_image_buf[smidx + baseS])[r*imgSizeRL]),	//src data
 					imgSizeRL,			//data size
 					idim,				//grid size 一维
 					THREAD_PER_BLOCK,	//block size 一维
 					*((cudaStream_t*)stream[smidx + baseS]));	//异步拷贝相关的流
+				
 				//计算标准差
-				//TODO
-
-				Reduction_stddev(&stddev,
+				reductionStddev(&stddev,
 					partial,
 					&((dev_image_buf[smidx + baseS])[r * imgSizeRL]),	//src data
 					mean,
@@ -200,7 +199,13 @@ void substract(
 					*((cudaStream_t*)stream[smidx + baseS]));	//异步拷贝相关的流
 
 				//处理dev_image_buf当中的数据
-				//TODO
+				writeDevBuffer(mean,
+					stddev,
+					&((dev_image_buf[smidx + baseS])[r * imgSizeRL]),
+					imgSizeRL,
+					idim, 
+					THREAD_PER_BLOCK, 
+					*((cudaStream_t*)stream[smidx + baseS]));
 
 				cout <<"Image "<<r<<": mean = " << mean <<" stddev= "<<stddev<< endl;
 			}
@@ -338,7 +343,7 @@ kernel_reductionSumOfSquareVar(RFLOAT* out, const RFLOAT* in, const RFLOAT mean,
 	}
 }
 
-void Reduction_stddev(RFLOAT* answer,
+void reductionStddev(RFLOAT* answer,
 	RFLOAT* partial,
 	const RFLOAT* in,
 	const RFLOAT mean,
@@ -388,7 +393,7 @@ void Reduction_stddev(RFLOAT* answer,
 //这里调用两遍kernel函数是必须的
 //非常重要 注意这里kernel函数的参数 ：block中threads的数量==Reduction1_kernel第二个输入参数（一个数组）的长度，也就是共享内存sharedSize
 void
-Reduction_mean(RFLOAT* answer,		//<out> 指向最终结果的指针
+reductionMean(RFLOAT* answer,		//<out> 指向最终结果的指针
 	RFLOAT* partial,	//指向存储临时数据 中间数组的指针，应该已经开辟好了空间。数组的长度应该是blockDim.x
 	const RFLOAT* in, //存储输入数据的指针
 	size_t N,	//输入数据的数量 这里是imgSizeRL
@@ -431,4 +436,46 @@ Reduction_mean(RFLOAT* answer,		//<out> 指向最终结果的指针
 
 	cudaFree(dev_mean);
 
+}
+
+//处理dev_image_buf当中的数据
+void writeDevBuffer(const RFLOAT mean,
+	const RFLOAT stddev,
+	RFLOAT* dev_image_buf,
+	size_t dataSize,
+	size_t numBlocks,		//idim
+	size_t numThreads,		//THREAD_PER_BLOCK,
+	cudaStream_t& stream)
+{
+	kernel_writeDevBuffer << <numBlocks,
+		numThreads,
+		0,
+		stream >> > (
+			dev_image_buf,
+			dataSize,
+			mean,
+			stddev
+			);
+
+}
+
+//这里传递进来的数据是一维的，kernel的启动使用的也是一维的grid，一维的block
+__global__ void kernel_writeDevBuffer(
+	RFLOAT* dev_image_buf,
+	size_t dataSize,
+	const RFLOAT mean,
+	const RFLOAT stddev
+)
+{
+	const int tid = threadIdx.x;
+
+	for (size_t i = blockIdx.x * blockDim.x + tid;
+		i < dataSize;
+		i += blockDim.x * gridDim.x)	//就是numBlocks*numThreads
+	{
+		RFLOAT tmp = dev_image_buf[i];
+		tmp -= mean;
+		tmp /= stddev;
+		dev_image_buf[i] = tmp;
+	}
 }
