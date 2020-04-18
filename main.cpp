@@ -4,13 +4,13 @@
 using namespace std;
 
 
-int main()
+float main()
 {
 	
-	vector<int*> imgVec;
-	vector<int*> oriImgVec;
-	vector<int*> cudaImgVec;
-	int imageNum = IMAGE_TOTAL_NUM;
+	vector<float*> imgVec;
+	vector<float*> oriImgVec;
+	vector<float*> cudaImgVec;
+	float imageNum = IMAGE_TOTAL_NUM;
 
 	imgVecInit(imgVec, imageNum);
 	imgVecInit(oriImgVec, imageNum);

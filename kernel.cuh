@@ -21,15 +21,16 @@ void cudaInit(vector<int>& iGPU, vector<void*>& stream);
 void cudaEndUp(vector<int>& iGPU, vector<void*>& stream);
 
 
-void devMalloc(int** devData, int dataSize);
+void devMalloc(float** devData, int dataSize);
 
-void hostRegister(int* imgData, int dataSizeByte);
+void hostRegister(float* imgData, int dataSizeByte);
 
-void hostFree(int* imgData);
+void hostFree(float* imgData);
 
-void substract(vector<void*>& stream, vector<int>& iGPU, int* imgData, int idim, int batch, int nGPU);
+void substract(vector<void*>& stream, vector<int>& iGPU, float* imgData, int idim, int batch, int nGPU);
 
-__global__ void Reduction1_kernel(int* out, const int* in, size_t N);
+__global__ void kernel_reductionMean(float* out, const float* in, size_t N);
 
-void Reduction_mean(int* answer, int* partial, const int* in, size_t N, int numBlocks, int numThreads, cudaStream_t& stream);
+
+void Reduction_mean(float* answer, float* partial, const float* in, size_t N, int numBlocks, int numThreads, cudaStream_t& stream);
 

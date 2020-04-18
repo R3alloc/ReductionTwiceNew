@@ -5,13 +5,13 @@
 
 //初始化一个存储多个image的vector，为每个image分配空间
 void imgVecInit(
-	vector<int*>& imgVec,	/**< [inout] 存储多个image指针的vector引用  */
+	vector<float*>& imgVec,	/**< [inout] 存储多个image指针的vector引用  */
 	int imageNum			/**< [in] image数量，也是vector的大小  */
 ) 
 {
 	for (int i = 0; i < imageNum; i++)
 	{
-		int* imgData = new int[IMAGE_SIZE];
+		float* imgData = new float[IMAGE_SIZE];
 		imgVec.push_back(imgData);
 	}
 	cout << "image vector init finished!" << endl;
@@ -19,7 +19,7 @@ void imgVecInit(
 
 //释放imgVec当中所有指针所指向的空间
 void imgVecFree(
-	vector<int*>& imgVec,	/**< [inout] 存储多个image指针的vector引用  */
+	vector<float*>& imgVec,	/**< [inout] 存储多个image指针的vector引用  */
 	int imageNum			/**< [in] image数量，也是vector的大小  */
 )
 {
@@ -29,7 +29,7 @@ void imgVecFree(
 	}
 	for (int i = 0; i < imageNum; i++)
 	{
-		int* imgData = imgVec.back();
+		float* imgData = imgVec.back();
 		delete[] imgData;
 		imgVec.pop_back();
 	}
@@ -37,11 +37,11 @@ void imgVecFree(
 }
 
 //为imgVec中所有的图片，生成随机像素值
-void imgVecRandomGen(vector<int*>& imgVec /**< [inout] 存储多个image指针的vector引用  */ )
+void imgVecRandomGen(vector<float*>& imgVec /**< [inout] 存储多个image指针的vector引用  */ )
 {
 	srand((unsigned int)(time(NULL)));
 	//注意迭代器的定义方法
-	for (vector<int*>::iterator it = imgVec.begin(); it != imgVec.end(); it++)
+	for (vector<float*>::iterator it = imgVec.begin(); it != imgVec.end(); it++)
 	{
 		for (int i = 0; i < IMAGE_SIZE; i++)
 		{
@@ -52,7 +52,7 @@ void imgVecRandomGen(vector<int*>& imgVec /**< [inout] 存储多个image指针的vector
 }
 
 //直接显示一部分图片的部分像素值
-void imgVecShow(vector<int*>& imgVec /**< [inout] 存储多个image指针的vector引用  */)
+void imgVecShow(vector<float*>& imgVec /**< [inout] 存储多个image指针的vector引用  */)
 {
 	cout << "Show part of image in image vector" << endl;
 	for (int imgIdx=0;imgIdx<SHOW_IMAGE_NUM;imgIdx++)
@@ -66,8 +66,8 @@ void imgVecShow(vector<int*>& imgVec /**< [inout] 存储多个image指针的vector引用 
 }
 
 void imgVecCpy(
-	vector<int*>& srcImgVec, /**< [in] 存储多个image指针的vector引用  */
-	vector<int*>& dstImgVec, /**< [out] 存储多个image指针的vector引用  */
+	vector<float*>& srcImgVec, /**< [in] 存储多个image指针的vector引用  */
+	vector<float*>& dstImgVec, /**< [out] 存储多个image指针的vector引用  */
 	int imageNum				/**< [in] 图片数量  */
 )
 {
@@ -81,20 +81,20 @@ void imgVecCpy(
 	cout << "image vector copy finished" << endl;
 	
 }
-void substractImg(vector<int*>& imgVec)
+void substractImg(vector<float*>& imgVec)
 {
-	int radius = RADIUS;
+	float radius = RADIUS;
 	int imageNum = imgVec.size();
 
 	//处理每一张图片
 	for (int i = 0; i < imgVec.size(); i++)
 	{
-		int* image = imgVec[i];
-		int mean;
-		int stddev;
+		float* image = imgVec[i];
+		float mean;
+		float stddev;
 
 		//此处模拟以图像的左上角顶点为原点来画半径 半径之外都算背景
-		vector<int> bg;
+		vector<float> bg;
 		for (int pxlIdx = 0; pxlIdx < IMAGE_SIZE; pxlIdx++)
 		{
 			int row = pxlIdx / IMAGE_WIDTH;
@@ -117,29 +117,29 @@ void substractImg(vector<int*>& imgVec)
 	
 }
 
-void bgMeanStddev(vector<int>& bg, int& mean, int& stddev, int imageNum)
+void bgMeanStddev(vector<float>& bg, float& mean, float& stddev, int imageNum)
 {
-	int sum = 0;
-	for (vector<int>::iterator it = bg.begin(); it != bg.end(); it++)
+	float sum = 0;
+	for (vector<float>::iterator it = bg.begin(); it != bg.end(); it++)
 	{
 		sum += (*it);
 	}
 	mean = sum / bg.size();
 
 	//标准差：标准值与其平均数离差平方的算术平均数的平方根
-	//long int quadSum = 0;
-	//注意这里要用long long int才不会溢出
-	long long int quadSum = 0;
-	for (vector<int>::iterator it = bg.begin(); it != bg.end(); it++)
+	//long float quadSum = 0;
+	//注意这里要用long long float才不会溢出
+	float quadSum = 0;
+	for (vector<float>::iterator it = bg.begin(); it != bg.end(); it++)
 	{
-		int curPixel = *it;
+		float curPixel = *it;
 		quadSum += pow( (curPixel - mean),2);
 	}
 	stddev = sqrt(quadSum / bg.size());
 
 }
 
-void substractImgG(vector<int*>& imgVec)
+void substractImgG(vector<float*>& imgVec)
 {
 	//如果是主线程，就退出。是计算线程，再参与计算。
 	//TODO
@@ -151,14 +151,14 @@ void substractImgG(vector<int*>& imgVec)
 	cudaInit(_iGPU, _stream);
 	//模拟
 
-	int* image;
-	int mean;
-	int stddev;
+	float* image;
+	float mean;
+	float stddev;
 	int nImg = IMAGE_TOTAL_NUM;	//要处理的图片总数
 	int batch = IMAGE_BATCH;	//一次处理图片的数量
 	int dimSizeRL = IMAGE_SIZE;	//一张图片在实空间当中的像素数量
-	int* imgData = (int*)malloc(sizeof(int) * IMAGE_BATCH * dimSizeRL);
-	hostRegister(imgData, IMAGE_BATCH * dimSizeRL*sizeof(int));
+	float* imgData = (float*)malloc(sizeof(float) * IMAGE_BATCH * dimSizeRL);
+	hostRegister(imgData, IMAGE_BATCH * dimSizeRL*sizeof(float));
 	
 	//l相当于每一轮循环中的一个base，偏移基准。
 	for (int l = 0; l < nImg;)

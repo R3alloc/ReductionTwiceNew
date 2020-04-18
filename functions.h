@@ -22,20 +22,20 @@
 
 using namespace std;
 
-void imgVecInit(vector<int*>& imgVec, int imageNum);
+void imgVecInit(vector<float*>& imgVec, int imageNum);
 
-void imgVecFree(vector<int*>& imgVec, int imageNum);
+void imgVecFree(vector<float*>& imgVec, int imageNum);
 
-void imgVecRandomGen(vector<int*>& imgVec);
+void imgVecRandomGen(vector<float*>& imgVec);
 
-void imgVecShow(vector<int*>& imgVec);
+void imgVecShow(vector<float*>& imgVec);
 
-void imgVecCpy(vector<int*>& srcImgVec, vector<int*>& dstImgVec, int imageNum);
+void imgVecCpy(vector<float*>& srcImgVec, vector<float*>& dstImgVec, int imageNum);
 
-void substractImg(vector<int*>& imgVec);
+void substractImg(vector<float*>& imgVec);
 
-void bgMeanStddev(vector<int>& bg, int& mean, int& stddev, int imageNum);
+void bgMeanStddev(vector<float>& bg, float& mean, float& stddev, int imageNum);
 
-void substractImgG(vector<int*>& imgVec);
+void substractImgG(vector<float*>& imgVec);
 
 
