@@ -159,6 +159,7 @@ void substractImgBgG(vector<RFLOAT*>& imgVec)
 	int nImg = IMAGE_TOTAL_NUM;	//要处理的图片总数
 	int batch = IMAGE_BATCH;	//一次处理图片的数量
 	int dimSizeRL = IMAGE_SIZE;	//一张图片在实空间当中的像素数量
+	int radius = BG_RADIUS;		//实际是_para.maskRadius / _para.pixelSize
 	RFLOAT* imgData = (RFLOAT*)malloc(sizeof(RFLOAT) * IMAGE_BATCH * dimSizeRL);
 	hostRegister(imgData, IMAGE_BATCH * dimSizeRL*sizeof(RFLOAT));
 	
@@ -188,7 +189,9 @@ void substractImgBgG(vector<RFLOAT*>& imgVec)
 		substract(_stream,
 			_iGPU,
 			imgData,
-			IMAGE_WIDTH,		//reMask里这个值传入的是_para.size,是图像一条边的长度。这里设置成IMAGE_WIDTH
+			IMAGE_WIDTH,	//nRow reMask里这个值传入的是_para.size,是图像一条边的长度。这里设置成IMAGE_WIDTH
+			IMAGE_WIDTH,	//nCol
+			radius,			//实际可以直接传值_para.maskRadius / _para.pixelSize
 			batch,
 			_nGPU
 		);

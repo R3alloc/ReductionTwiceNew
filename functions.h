@@ -9,9 +9,9 @@
 //#define IMAGE_SIZE (1024*1024)
 //#define IMAGE_WIDTH 1024
 
-#define IMAGE_SIZE (64*64)
-#define IMAGE_WIDTH 64
-
+#define IMAGE_SIZE (128*128)
+#define IMAGE_WIDTH 128
+#define BG_RADIUS (IMAGE_WIDTH/2)	// µº  «_para.maskRadius / _para.pixelSize
 #define PIXEL_VALUE_MAX 256
 #define SHOW_IMAGE_NUM 16
 #define SHOW_IMAGE_PIXEL 16
