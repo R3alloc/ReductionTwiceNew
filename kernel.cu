@@ -109,7 +109,7 @@ void substract(
 	RFLOAT** dev_image_buf = (RFLOAT**)malloc(sizeof(RFLOAT*)*nStream);
 
 	//存储每台GPU上的模板指针
-	int** dev_template = (RFLOAT**)malloc(sizeof(int*) * nStream);
+	int** dev_template = (int**)malloc(sizeof(int*) * nStream);
 
 	//用于临时存储
 	RFLOAT** dev_tmpImgMean = (RFLOAT**)malloc(sizeof(RFLOAT*) * nStream);
@@ -126,7 +126,8 @@ void substract(
 	//为每台GPU上的每个流分配空间，分配BATCH_SIZE张照片的图片
 	//可以在这里为每个GPU配备一个背景模板（应该每个GPU配一个还是每个stream配一个？）
 	int* host_template = new int[imgSizeRL];
-	hostTmpltGen(host_template, nRow, nCol, radius);
+	size_t bgSize;
+	hostTmpltGen(host_template, nRow, nCol, radius, &bgSize);
 
 	for (int n = 0; n < nGPU; n++)
 	{
@@ -147,6 +148,8 @@ void substract(
 			result = cudaMalloc((void**)&dev_tmpImgStddev[i + baseS], imgSizeRL * sizeof(RFLOAT));
 			cudaResultCheck(result, __FILE__, __FUNCTION__, __LINE__);
 
+			//将CPU上生成的模板拷贝到GPU上
+			result = cudaMemcpy(dev_template[i + baseS], host_template, imgSizeRL * sizeof(int), cudaMemcpyHostToDevice);
 			/*
 			int numBlocks = 256;
 			int numThreads = threadInBlock;
@@ -214,12 +217,24 @@ void substract(
 
 				//可以在这里做图片(dev_image_buf[smidx + baseS])[r*imgSizeRL] 与模板进行与操作的 得到一个临时的只有背景的图片
 				//然后输入给reductionMean的图片是这个临时图片
+				kernel_templateMask << < nCol,
+					threadInBlock,
+					0,
+					*((cudaStream_t*)stream[smidx + baseS]) >> > (
+						&((dev_image_buf[smidx + baseS])[r * imgSizeRL]),	//src data
+						dev_template[smidx + baseS],
+						dev_tmpImgMean[smidx + baseS],
+						nRow,
+						nCol
+						);
 
 				//一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中
 				reductionMean(&mean,	//最后要求的结果：均值
 					partial,			//用于存放中间结果的一段device memory
-					&((dev_image_buf[smidx + baseS])[r*imgSizeRL]),	//src data
+					//&((dev_image_buf[smidx + baseS])[r*imgSizeRL]),	//src data
+					dev_tmpImgMean[smidx + baseS],
 					imgSizeRL,			//data size
+					bgSize,				//背景像素点数量
 					nCol,				//grid size 一维
 					threadInBlock,	//block size 一维
 					*((cudaStream_t*)stream[smidx + baseS]));	//异步拷贝相关的流
@@ -438,6 +453,7 @@ reductionMean(RFLOAT* answer,		//<out> 指向最终结果的指针
 	RFLOAT* partial,	//指向存储临时数据 中间数组的指针，应该已经开辟好了空间。数组的长度应该是blockDim.x
 	const RFLOAT* in, //存储输入数据的指针
 	size_t N,	//输入数据的数量 这里是imgSizeRL
+	size_t bgSize,	//背景像素点的数量
 	int numBlocks, 
 	int numThreads,
 	cudaStream_t& stream)
@@ -472,8 +488,8 @@ reductionMean(RFLOAT* answer,		//<out> 指向最终结果的指针
 	//经过了这一步，才真正得到了结果
 	cudaMemcpyAsync(answer, dev_mean, sizeof(RFLOAT), cudaMemcpyDeviceToHost, stream);
 
-	//求和之后计算均值
-	*answer = *answer / N;
+	//求和之后计算均值 只要在累加之后除以背景像素点数量即可，非背景的像素点都被置为0了
+	*answer = *answer / bgSize;
 
 	cudaFree(dev_mean);
 
@@ -545,10 +561,11 @@ __global__ void kernel_templateGen(
 */
 
 //在host端生成背景模板的函数
-void hostTmpltGen(int* host_template, int nRow, int nCol, RFLOAT radius)
+void hostTmpltGen(int* host_template, int nRow, int nCol, RFLOAT radius, size_t* bgSize)
 {
 	int imgSizeRL = nRow * nCol;
 	int pixelIndex;
+	size_t tmpBgSize = 0;
 	for (long j = -nRow / 2; j < nRow / 2; j++)
 	{
 		for (long i = -nCol / 2; i < nCol / 2; i++)
@@ -560,6 +577,7 @@ void hostTmpltGen(int* host_template, int nRow, int nCol, RFLOAT radius)
 			if (pow(i, 2) + pow(j, 2) > pow(radius, 2))
 			{
 				host_template[pixelIndex] = 1;
+				tmpBgSize++;
 			}
 			//对应像素在radius内部，不是背景，不参与计算mean和stddev，所以设置为0
 			else
@@ -567,5 +585,25 @@ void hostTmpltGen(int* host_template, int nRow, int nCol, RFLOAT radius)
 				host_template[pixelIndex] = 0;
 			}
 		}
+	}
+	*bgSize = tmpBgSize;
+}
+
+
+__global__ void kernel_templateMask(
+	RFLOAT* dev_src,	//src data
+	int* dev_template,
+	RFLOAT* dev_tmpImgMean,
+	int nRow,
+	int nCol
+)
+{
+	int imgSizeRL = nRow * nCol;
+	int tid = threadIdx.x;
+	for (size_t i = blockDim.x * blockIdx.x + tid;
+		i < imgSizeRL;
+		i += gridDim.x * blockDim.x)
+	{
+		dev_tmpImgMean[i] = dev_src[i] * dev_template[i];
 	}
 }

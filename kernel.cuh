@@ -42,11 +42,15 @@ __global__ void kernel_reductionSumOfSquareVar(RFLOAT* out, const RFLOAT* in, co
 
 void reductionStddev(RFLOAT* answer, RFLOAT* partial, const RFLOAT* in, const RFLOAT mean, size_t N, int numBlocks, int numThreads, cudaStream_t& stream);
 
-void reductionMean(RFLOAT* answer, RFLOAT* partial, const RFLOAT* in, size_t N, int numBlocks, int numThreads, cudaStream_t& stream);
+void reductionMean(RFLOAT* answer, RFLOAT* partial, const RFLOAT* in, size_t N, size_t bgSize, int numBlocks, int numThreads, cudaStream_t& stream);
 
 __global__ void kernel_writeDevBuffer(RFLOAT* dev_image_buf, size_t dataSize, const RFLOAT mean, const RFLOAT stddev);
 
-void hostTmpltGen(int host_template, int nRow, int nCol, RFLOAT radius);
+void hostTmpltGen(int* host_template, int nRow, int nCol, RFLOAT radius, size_t* bgSize);
+
+__global__ void kernel_templateMask(RFLOAT* dev_src, int* dev_template, RFLOAT* dev_tmpImgMean, int nRow, int nCol);
+
+
 
 
 
