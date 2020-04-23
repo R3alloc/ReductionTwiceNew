@@ -129,6 +129,7 @@ void substract(
 	size_t bgSize;
 	hostTmpltGen(host_template, nRow, nCol, radius, &bgSize);
 
+	cout << "bgSize = " << bgSize << endl;
 	for (int n = 0; n < nGPU; n++)
 	{
 		baseS = n * NUM_STREAM_PER_DEVICE;
@@ -150,17 +151,7 @@ void substract(
 
 			//将CPU上生成的模板拷贝到GPU上
 			result = cudaMemcpy(dev_template[i + baseS], host_template, imgSizeRL * sizeof(int), cudaMemcpyHostToDevice);
-			/*
-			int numBlocks = 256;
-			int numThreads = threadInBlock;
-			kernel_templateGen << <numBlocks,
-				numThreads >> > (
-					dev_template[i + baseS],	//输出
-					radius,	//确定背景的半径 _para.maskRadius / _para.pixelSize
-					nRow,	//图片的行数
-					nCol	//图片的列数
-					);
-					*/
+
 		}
 	}
 
@@ -223,10 +214,12 @@ void substract(
 					*((cudaStream_t*)stream[smidx + baseS]) >> > (
 						&((dev_image_buf[smidx + baseS])[r * imgSizeRL]),	//src data
 						dev_template[smidx + baseS],
-						dev_tmpImgMean[smidx + baseS],
+						dev_tmpImgMean[smidx + baseS],	//out
 						nRow,
 						nCol
 						);
+
+				
 
 				//一次只处理一张照片,处理完了之后将数据直接写回dev_image_buf当中
 				reductionMean(&mean,	//最后要求的结果：均值
@@ -239,15 +232,32 @@ void substract(
 					threadInBlock,	//block size 一维
 					*((cudaStream_t*)stream[smidx + baseS]));	//异步拷贝相关的流
 				
+				
+
 				//计算标准差则使用另一张临时图片 这张临时图片中所有的0都被填成上面计算出来的mean值
 				//这样计算标准差的时候非背景的像素点平方差就是0，不会对标准差的计算产生影响
+				kernel_templateMaskStddev <<<nCol,
+					threadInBlock,
+					0,
+					*((cudaStream_t*)stream[smidx + baseS]) >>> (
+						dev_tmpImgMean[smidx + baseS],	//既是src也是dst
+						dev_template[smidx + baseS],
+						nRow,
+						nCol,
+						mean
+						);
+
+				
 
 				//计算标准差
 				reductionStddev(&stddev,
 					partial,
-					&((dev_image_buf[smidx + baseS])[r * imgSizeRL]),	//src data
+					dev_tmpImgMean[smidx + baseS],	//src data
+					//&((dev_image_buf[smidx + baseS])[r*imgSizeRL]),	//src data
 					mean,
 					imgSizeRL,			//data size
+					bgSize,
+					//imgSizeRL,			//bg size
 					nCol,				//grid size 一维
 					threadInBlock,	//block size 一维
 					*((cudaStream_t*)stream[smidx + baseS]));	//异步拷贝相关的流
@@ -263,7 +273,7 @@ void substract(
 					*((cudaStream_t*)stream[smidx + baseS]));
 					*/
 
-				cout <<"Image "<<r<<": mean = " << mean <<" stddev= "<<stddev<< endl;
+				cout <<"Image "<<r<<": mean = " << mean <<" stddev= "<<stddev<<" bgSize=" <<bgSize<<endl;
 			}
 
 			//一个batch里所有的照片处理完毕之后，应该写回imgData当中
@@ -404,6 +414,7 @@ void reductionStddev(RFLOAT* answer,
 	const RFLOAT* in,
 	const RFLOAT mean,
 	size_t N,
+	size_t bgSize,
 	int numBlocks,
 	int numThreads,
 	cudaStream_t& stream)
@@ -426,7 +437,7 @@ void reductionStddev(RFLOAT* answer,
 			);
 
 	//第二次结果answer才是最终的计算结果。
-	kernel_reductionSum << <
+	kernel_reductionSum <<<
 		1,
 		numThreads,
 		sharedSize,
@@ -441,7 +452,7 @@ void reductionStddev(RFLOAT* answer,
 	cudaMemcpyAsync(answer, dev_sumOfSquareVar, sizeof(RFLOAT), cudaMemcpyDeviceToHost, stream);
 
 	//求和之后计算标准差
-	*answer = sqrt(*answer / N);
+	*answer = sqrt(*answer / bgSize);
 
 	cudaFree(dev_sumOfSquareVar);
 }
@@ -587,6 +598,8 @@ void hostTmpltGen(int* host_template, int nRow, int nCol, RFLOAT radius, size_t*
 		}
 	}
 	*bgSize = tmpBgSize;
+
+	//showSingleImgInt(host_template, nRow, nCol);
 }
 
 
@@ -606,4 +619,55 @@ __global__ void kernel_templateMask(
 	{
 		dev_tmpImgMean[i] = dev_src[i] * dev_template[i];
 	}
+}
+
+__global__ void kernel_templateMaskStddev(
+	RFLOAT* dev_tmpImg,	//既是src也是dst
+	int* dev_template,
+	int nRow,
+	int nCol,
+	RFLOAT mean
+) 
+{
+	//变量一定要记得初始化！！！！！！！！
+	int imgSizeRL = nCol*nRow;
+	int tid = threadIdx.x;
+
+	for (size_t i = blockDim.x * blockIdx.x + tid;
+		i < imgSizeRL;
+		i += gridDim.x * blockDim.x)
+	{
+		//这里是如果不是背景，就设置为mean。如果是背景，就加上0
+		dev_tmpImg[i] += ( 1 - dev_template[i]) * mean;
+		//dev_tmpImg[i] = mean;
+		//dev_tmpImg[i] = 0;
+	}
+}
+
+void showSingleImgInt(int* img, size_t nRow, size_t nCol)
+{
+	//再遍历行 先从第一行的1，2，3 。。。列开始
+	for (size_t i = 0; i < nRow; i++)
+	{
+		//先遍历列
+		for (size_t j = 0; j < nCol; j++)
+		{
+			cout << img[i*nRow+j] << " ";
+		}
+		cout << endl;
+	}
+	cout << endl;
+}
+
+void showSingleImg(RFLOAT* img, size_t nRow, size_t nCol)
+{
+	for (size_t i = 0; i < nRow; i++)
+	{
+		for (size_t j = 0; j < nCol; j++)
+		{
+			cout << img[i*nRow+j] << " ";
+		}
+		cout << endl;
+	}
+	cout << endl;
 }

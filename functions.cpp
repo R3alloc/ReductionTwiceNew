@@ -87,6 +87,32 @@ void substractImgBg(vector<RFLOAT*>& imgVec)
 {
 	RFLOAT radius = RADIUS;
 	int imageNum = imgVec.size();
+	long nRow = IMAGE_WIDTH;
+	long nCol = IMAGE_WIDTH;
+
+	//输出一下背景的形状
+	int* tmplt = new int[nCol * nRow];
+	for (long j = -nRow / 2; j < nRow / 2; j++)
+	{
+		for (long i = -nCol / 2; i < nCol / 2; i++)
+		{
+			long pixelIndex = (j >= 0 ? j : j + nRow) * nCol
+				+ (i >= 0 ? i : i + nCol);
+
+			//如果对应的像素在radius之外，则是背景，设为1
+			if (pow(i, 2) + pow(j, 2) > pow(radius, 2))
+			{
+				tmplt[pixelIndex] = 1;
+			}
+			else
+			{
+				tmplt[pixelIndex] = 0;
+			}
+
+		}
+	}
+	showSingleImgInt(tmplt, nRow, nCol);
+	delete[] tmplt;
 
 	//处理每一张图片
 	for (int i = 0; i < imgVec.size(); i++)
@@ -94,21 +120,29 @@ void substractImgBg(vector<RFLOAT*>& imgVec)
 		RFLOAT* image = imgVec[i];
 		RFLOAT mean;
 		RFLOAT stddev;
-
+		int bgSize = 0;
 		//此处模拟以图像的左上角顶点为原点来画半径 半径之外都算背景
 		vector<RFLOAT> bg;
-		for (int pxlIdx = 0; pxlIdx < IMAGE_SIZE; pxlIdx++)
+		for (long j = -nRow / 2; j < nRow / 2; j++)
 		{
-			int row = pxlIdx / IMAGE_WIDTH;
-			int col = pxlIdx % IMAGE_SIZE;
-			if (col * col + row * row > radius * radius)
+			for (long i = -nCol / 2; i < nCol / 2; i++)
 			{
-				bg.push_back(image[pxlIdx]);
+				long pixelIndex = (j >= 0 ? j : j + nRow) * nCol
+					+ (i >= 0 ? i : i + nCol);
+
+				//如果对应的像素在radius之外，则是背景，设为1
+				if (pow(i, 2) + pow(j, 2) > pow(radius, 2))
+				{
+					bg.push_back(image[pixelIndex]);
+					bgSize++;
+				}
+
 			}
 		}
 
-		bgMeanStddev(bg,mean,stddev,imageNum);
-		cout << "image " << i << ": mean=" << mean << " stddev=" << stddev << endl;
+		bgMeanStddev(bg,mean,stddev,bgSize);
+
+		cout << "image " << i << ": mean=" << mean << " stddev=" << stddev <<" bgSize="<<bgSize << endl;
 		for (int j = 0; j < IMAGE_SIZE; j++)
 		{
 			image[j] -= mean;
@@ -208,3 +242,4 @@ void substractImgBgG(vector<RFLOAT*>& imgVec)
 
 	cudaEndUp(_iGPU, _stream);
 }
+
